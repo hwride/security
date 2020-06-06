@@ -1,4 +1,5 @@
 const puppeteer = require('puppeteer')
+const { setupServers, shutdownServers } = require('./servers')
 const { setupLoggingOfAllNetworkData, mergeRawCDPRequestData } = require('./cdp-request-logging')
 const logRequests = require('debug')('cors:requests')
 
@@ -18,6 +19,8 @@ runCorsTests()
  */
 
 async function runCorsTests() {
+    const servers = setupServers()
+
     // Setup browser.
     const browser = await puppeteer.launch()
 
@@ -41,6 +44,7 @@ async function runCorsTests() {
 
     // Tear down browser.
     await browser.close();
+    shutdownServers(servers)
 }
 
 function setupLogging(page) {
