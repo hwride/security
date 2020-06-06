@@ -17,7 +17,7 @@ const CDP_EVT_RESPONSE_EXTRA = 'Network.responseReceivedExtraInfo'
  * Sets up logging of all requests data.
  * Returns map of request ID to raw CDP request data. This will be populated as requests are made.
  */
-exports.setupLoggingOfAllNetworkData = async function(page) {
+exports.sendCapturingOfBrowserRequestData = async function(page) {
     const cdpSession = await page.target().createCDPSession()
     await cdpSession.send('Network.enable')
     const cdpRequestDataRaw = {}
@@ -36,7 +36,7 @@ exports.setupLoggingOfAllNetworkData = async function(page) {
 }
 
 /**
- * Given the raw CDP request data captured by setupLoggingOfAllNetworkData, will merge together the separate request
+ * Given the raw CDP request data captured by sendCapturingOfBrowserRequestData, will merge together the separate request
  * and response main and extra info. Only call this when all requests have completely finished.
  */
 exports.mergeRawCDPRequestData = function(cdpRequestDataRaw) {

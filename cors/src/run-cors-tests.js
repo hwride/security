@@ -1,6 +1,6 @@
 const puppeteer = require('puppeteer')
 const { setupServers, shutdownServers } = require('./servers')
-const { setupLoggingOfAllNetworkData, mergeRawCDPRequestData } = require('./cdp-request-logging')
+const { sendCapturingOfBrowserRequestData, mergeRawCDPRequestData } = require('./cdp-request-logging')
 const logRequests = require('debug')('cors:requests')
 
 const SERVER_1 = 'http://localhost:8080'
@@ -27,13 +27,13 @@ async function runCorsTests() {
     // Setup page.
     const page = await browser.newPage()
     setupLogging(page)
-    const cdpRequestDataRaw = await setupLoggingOfAllNetworkData(page)
+    const browserRawCDPRequestData = await sendCapturingOfBrowserRequestData(page)
 
     await page.goto(SERVER_1)
     await setupPageUtilFunctions(page)
 
     // Make test requests.
-    const allRequestData = await makeRequests(page, cdpRequestDataRaw, [
+    const allRequestData = await makeRequests(page, browserRawCDPRequestData, [
         { name: 'Same-origin, regular endpoint', url: `${SERVER_1}/regular-endpoint` },
         { name: 'Same-origin, CORS enabled endpoint', url: `${SERVER_1}/cors-enabled-endpoint` },
         { name: 'Different origin, regular endpoint', url: `${SERVER_2}/regular-endpoint`, expectBlockedRequest: true },
@@ -51,9 +51,12 @@ function setupLogging(page) {
     page.on('console', msg => console.log('[Page] ', msg.text()))
 }
 
+/**
+ * Sets up a global function on the page which will send a request and capture its request data.
+ */
 async function setupPageUtilFunctions(page) {
     await page.evaluate(async () => {
-        window.sendRequestAndCaptureDataPage = async function(url, requestOptions, readBody = true) {
+        window.sendRequestAndCaptureDataScript = async function(url, requestOptions, readBody = true) {
             const request = new Request(url, requestOptions)
             let response
             try {
@@ -84,18 +87,25 @@ async function setupPageUtilFunctions(page) {
     })
 }
 
-async function makeRequests(page, cdpRequestDataRaw, requestsToMake) {
+/**
+ * Make some requests logging data about those requests.
+ * @param page Page object.
+ * @param browserRawCDPRequestData CDP raw request data object.
+ * @param requestsToMake Array of requests to make.
+ * @returns {Promise<[]>}
+ */
+async function makeRequests(page, browserRawCDPRequestData, requestsToMake) {
     const requestData = []
     await Promise.all(requestsToMake.map(async (request) => {
         const thisRequestData = {
             name: request.name
         }
         requestData.push(thisRequestData)
-        Object.assign(thisRequestData, await sendRequestAndCaptureData(page, request.url, request.expectBlockedRequest))
+        Object.assign(thisRequestData, await sendRequestAndCaptureScriptData(page, request.url, request.expectBlockedRequest))
     }))
 
     // Merge the browser request data with the CDP logged request data.
-    const cdpRequestData = mergeRawCDPRequestData(cdpRequestDataRaw)
+    const cdpRequestData = mergeRawCDPRequestData(browserRawCDPRequestData)
     requestData.forEach(singleRequestData => {
         const cdpDataForRequest = cdpRequestData[singleRequestData.cdpRequestID]
         singleRequestData.requestSentByBrowser = cdpDataForRequest.request
@@ -104,10 +114,10 @@ async function makeRequests(page, cdpRequestDataRaw, requestsToMake) {
     return requestData
 }
 
-async function sendRequestAndCaptureData(page, url, expectBlockedRequest) {
+async function sendRequestAndCaptureScriptData(page, url, expectBlockedRequest) {
     const waitForRequestPromise = page.waitForRequest(url)
     const responseScript = await page.evaluate((url, expectBlockedRequest) => {
-        return sendRequestAndCaptureDataPage(url, {}, !expectBlockedRequest)
+        return sendRequestAndCaptureDataScript(url, {}, !expectBlockedRequest)
     }, url, expectBlockedRequest)
     const requestBrowser = await waitForRequestPromise
     return {
