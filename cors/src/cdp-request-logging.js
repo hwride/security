@@ -6,7 +6,7 @@
 
     This file sets up capturing of all the events and stores the information against CDP request ID.
  */
-const logRequests = require('debug')('cors:cdp-requests')
+const logger = require('./logging').createLogger('cdp-request-logging')
 
 const CDP_EVT_REQUEST = 'Network.requestWillBeSent'
 const CDP_EVT_REQUEST_EXTRA = 'Network.requestWillBeSentExtraInfo'
@@ -23,7 +23,7 @@ exports.sendCapturingOfBrowserRequestData = async function(page) {
     const cdpRequestDataRaw = {}
     const addCDPRequestDataListener = (eventName) => {
         cdpSession.on(eventName, request => {
-            logRequests(`${eventName}: ${JSON.stringify(request, null, 2)}`)
+            logger.debug(`${eventName}: ${JSON.stringify(request, null, 2)}`)
             cdpRequestDataRaw[request.requestId] = cdpRequestDataRaw[request.requestId] || {}
             Object.assign(cdpRequestDataRaw[request.requestId], { [eventName]: request })
         })

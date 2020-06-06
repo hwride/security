@@ -1,7 +1,8 @@
 const puppeteer = require('puppeteer')
 const { setupServers, shutdownServers } = require('./servers')
 const { sendCapturingOfBrowserRequestData, mergeRawCDPRequestData } = require('./cdp-request-logging')
-const logRequests = require('debug')('cors:requests')
+const { setupLogging, createLogger } = require('./logging')
+var logger = require('loglevel').getLogger('run-cors-tests')
 
 const SERVER_1 = 'http://localhost:8080'
 const SERVER_2 = 'http://localhost:8081'
@@ -19,6 +20,7 @@ runCorsTests()
  */
 
 async function runCorsTests() {
+    setupLogging()
     const servers = setupServers()
 
     // Setup browser.
@@ -26,7 +28,7 @@ async function runCorsTests() {
 
     // Setup page.
     const page = await browser.newPage()
-    setupLogging(page)
+    setupPageLogging(page)
     const browserRawCDPRequestData = await sendCapturingOfBrowserRequestData(page)
 
     await page.goto(SERVER_1)
@@ -39,7 +41,7 @@ async function runCorsTests() {
         { name: 'Different origin, regular endpoint', url: `${SERVER_2}/regular-endpoint`, expectBlockedRequest: true },
         { name: 'Different origin, CORS enabled endpoint', url: `${SERVER_2}/cors-enabled-endpoint` }
     ])
-    logRequests(JSON.stringify(allRequestData, null, 2))
+    logger.debug(JSON.stringify(allRequestData, null, 2))
     printRequestDataSimple(allRequestData)
 
     // Tear down browser.
@@ -47,8 +49,8 @@ async function runCorsTests() {
     shutdownServers(servers)
 }
 
-function setupLogging(page) {
-    page.on('console', msg => console.log('[Page] ', msg.text()))
+function setupPageLogging(page) {
+    page.on('console', msg => logger.info('[Page] ', msg.text()))
 }
 
 /**
@@ -144,6 +146,6 @@ function printRequestDataSimple(allRequestData) {
             out += `\nScript received an error: ${responseSeenByScript.error}`
         }
         out += '\n'
-        console.log(out)
+        logger.info(out)
     })
 }
