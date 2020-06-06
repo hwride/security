@@ -1,4 +1,5 @@
 const runCorsTests = require('puppeteer');
+const logRequests = require('debug')('cors:requests');
 
 (async () => {
     // Setup browser.
@@ -82,7 +83,7 @@ function logRequest(request) {
     Object.keys(request.headers()).forEach(key => {
         out += `${key}: ${request.headers()[key]}\n`
     })
-    console.log(out)
+    logRequests(out)
 }
 
 function logResponse(response) {
@@ -90,5 +91,5 @@ function logResponse(response) {
     Object.keys(response.headers()).forEach(key => {
         out += `${key}: ${response.headers()[key]}\n`
     })
-    console.log(out)
+    logRequests(out)
 }
