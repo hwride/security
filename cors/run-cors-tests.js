@@ -1,40 +1,76 @@
 const puppeteer = require('puppeteer')
+const { setupLoggingOfAllNetworkData, mergeRawCDPRequestData } = require('./cdp-request-logging')
 const logRequests = require('debug')('cors:requests')
 
+const SERVER_1 = 'http://localhost:8080'
+const SERVER_2 = 'http://localhost:8081'
+
 runCorsTests()
+
+/*
+ Ideal data:
+ name
+ request data from script
+ request data from browser
+ whether server processes request
+ response data to browser
+ response data to script
+ */
 
 async function runCorsTests() {
     // Setup browser.
     const browser = await puppeteer.launch()
-    
+
     // Setup page.
     const page = await browser.newPage()
     setupLogging(page)
-    await page.goto('http://localhost:8080/')
+    const cdpRequestDataRaw = await setupLoggingOfAllNetworkData(page)
+
+    await page.goto(SERVER_1)
     await setupPageUtilFunctions(page)
 
-    // Make a test request.
-    const request = await sendRequestAndCaptureData(page, 'http://localhost:8080/regular-endpoint')
-    console.log(request)
+    // Make test requests.
+    const allRequestData = await makeRequests(page, cdpRequestDataRaw, [
+        { name: 'Same-origin, regular endpoint', url: `${SERVER_1}/regular-endpoint` },
+        { name: 'Same-origin, CORS enabled endpoint', url: `${SERVER_1}/cors-enabled-endpoint` },
+        { name: 'Different origin, regular endpoint', url: `${SERVER_2}/regular-endpoint`, expectBlockedRequest: true },
+        { name: 'Different origin, CORS enabled endpoint', url: `${SERVER_2}/cors-enabled-endpoint` }
+    ])
+    logRequests(JSON.stringify(allRequestData, null, 2))
+    printRequestDataSimple(allRequestData)
 
     // Tear down browser.
     await browser.close();
 }
 
+function setupLogging(page) {
+    page.on('console', msg => console.log('[Page] ', msg.text()))
+}
+
 async function setupPageUtilFunctions(page) {
     await page.evaluate(async () => {
-        window.sendRequestAndCaptureData = async function(url, requestOptions, readBody = true) {
+        window.sendRequestAndCaptureDataPage = async function(url, requestOptions, readBody = true) {
             const request = new Request(url, requestOptions)
-            const response = await fetch(request)
+            let response
+            try {
+                response = await fetch(request)
+            } catch(e) {
+                response = e
+            }
             const data = {
                 request: {
                     mode: request.mode,
-                    credentials: request.credentials
+                    credentials: request.credentials,
+                    headers: JSON.stringify(request.headers, null , 2)
                 },
                 response: {
                     type: response.type,
+                    headers: JSON.stringify(response.headers, null , 2),
                     bodyNonNull: response.body != null
                 }
+            }
+            if(response instanceof Error) {
+                data.response.error = `${response.name}: ${response.message}`
             }
             if(readBody) {
                 data.response.body = JSON.stringify(await response.json())
@@ -44,54 +80,56 @@ async function setupPageUtilFunctions(page) {
     })
 }
 
-async function sendRequestAndCaptureData(page, url) {
-    const waitForResponsePromise = page.waitForResponse(url)
-    const responseScript = await page.evaluate(async url => sendRequestAndCaptureData(url), url)
-    const responseBrowser = await waitForResponsePromise
-    const request = responseBrowser.request()
+async function makeRequests(page, cdpRequestDataRaw, requestsToMake) {
+    const requestData = []
+    await Promise.all(requestsToMake.map(async (request) => {
+        const thisRequestData = {
+            name: request.name
+        }
+        requestData.push(thisRequestData)
+        Object.assign(thisRequestData, await sendRequestAndCaptureData(page, request.url, request.expectBlockedRequest))
+    }))
+
+    // Merge the browser request data with the CDP logged request data.
+    const cdpRequestData = mergeRawCDPRequestData(cdpRequestDataRaw)
+    requestData.forEach(singleRequestData => {
+        const cdpDataForRequest = cdpRequestData[singleRequestData.cdpRequestID]
+        singleRequestData.requestSentByBrowser = cdpDataForRequest.request
+        singleRequestData.responseReceivedByBrowser = cdpDataForRequest.response
+    })
+    return requestData
+}
+
+async function sendRequestAndCaptureData(page, url, expectBlockedRequest) {
+    const waitForRequestPromise = page.waitForRequest(url)
+    const responseScript = await page.evaluate((url, expectBlockedRequest) => {
+        return sendRequestAndCaptureDataPage(url, {}, !expectBlockedRequest)
+    }, url, expectBlockedRequest)
+    const requestBrowser = await waitForRequestPromise
     return {
-        name: 'Regular endpoint same origin',
-        requestSentByScript: responseScript.request,
-        requestSentByBrowser: {
-            methodAndURL: `${request.method()} ${request.url()}`,
-            originHeader: request.headers().origin,
-        },
-        responseReceivedByBrowser: {
-            status: `${responseBrowser.status()} ${responseBrowser.statusText()}`,
-            responseBody: await responseBrowser.text()
-        },
-        responseReceivedByScript: responseScript.response
+        cdpRequestID: requestBrowser._requestId,
+        requestSeenByScript: responseScript.request,
+        responseSeenByScript: responseScript.response
     }
 }
 
-/*
-Ideal data:
-name
-request data from script
-request data from browser
-whether server processes request
-response data to browser
-response data to script
- */
-
-function setupLogging(page) {
-    page.on('console', msg => console.log('[Page] ', msg.text()))
-    page.on('request', request => logRequest(request))
-    page.on('response', response => logResponse(response))
-}
-
-function logRequest(request) {
-    let out = `${request.method()} ${request.url()}\n`
-    Object.keys(request.headers()).forEach(key => {
-        out += `${key}: ${request.headers()[key]}\n`
+function printRequestDataSimple(allRequestData) {
+    allRequestData.forEach(requestData => {
+        const {
+            requestSeenByScript,
+            requestSentByBrowser,
+            responseReceivedByBrowser,
+            responseSeenByScript
+        } = requestData
+        let out = `${requestData.name}\n`
+        out += `${requestSentByBrowser.request.method} ${requestSentByBrowser.request.url}`
+        const emptyCheck = (obj, key) => obj[key] != null ? obj[key] : `[No ${key}]`
+        out += `\n${emptyCheck(responseReceivedByBrowser.response, 'status')} `
+        out += `${emptyCheck(responseReceivedByBrowser.response, 'statusText')}`
+        if(responseSeenByScript.error) {
+            out += `\nScript received an error: ${responseSeenByScript.error}`
+        }
+        out += '\n'
+        console.log(out)
     })
-    logRequests(out)
-}
-
-function logResponse(response) {
-    let out = `${response.status()} ${response.statusText()}\n`
-    Object.keys(response.headers()).forEach(key => {
-        out += `${key}: ${response.headers()[key]}\n`
-    })
-    logRequests(out)
 }
