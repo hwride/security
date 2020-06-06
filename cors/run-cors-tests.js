@@ -1,14 +1,16 @@
-const runCorsTests = require('puppeteer');
-const logRequests = require('debug')('cors:requests');
+const puppeteer = require('puppeteer')
+const logRequests = require('debug')('cors:requests')
 
-(async () => {
+runCorsTests()
+
+async function runCorsTests() {
     // Setup browser.
-    const browser = await runCorsTests.launch();
+    const browser = await puppeteer.launch()
     
     // Setup page.
-    const page = await browser.newPage();
+    const page = await browser.newPage()
     setupLogging(page)
-    await page.goto('http://localhost:8080/');
+    await page.goto('http://localhost:8080/')
     await setupPageUtilFunctions(page)
 
     // Make a test request.
@@ -17,7 +19,7 @@ const logRequests = require('debug')('cors:requests');
 
     // Tear down browser.
     await browser.close();
-})();
+}
 
 async function setupPageUtilFunctions(page) {
     await page.evaluate(async () => {
@@ -73,7 +75,7 @@ response data to script
  */
 
 function setupLogging(page) {
-    page.on('console', msg => console.log('[Page] ', msg.text()));
+    page.on('console', msg => console.log('[Page] ', msg.text()))
     page.on('request', request => logRequest(request))
     page.on('response', response => logResponse(response))
 }
