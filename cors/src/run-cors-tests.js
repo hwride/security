@@ -2,7 +2,7 @@ const puppeteer = require('puppeteer')
 const { setupServers, shutdownServers } = require('./servers')
 const { sendCapturingOfBrowserRequestData, mergeRawCDPRequestData } = require('./cdp-request-logging')
 const { setupLogging, createLogger } = require('./logging')
-var logger = require('loglevel').getLogger('run-cors-tests')
+var logger = createLogger('run-cors-tests')
 
 const SERVER_1 = 'http://localhost:8080'
 const SERVER_2 = 'http://localhost:8081'
@@ -50,7 +50,7 @@ async function runCorsTests() {
 }
 
 function setupPageLogging(page) {
-    page.on('console', msg => logger.info('[Page] ', msg.text()))
+    page.on('console', msg => logger.info('[Page] ' + msg.text()))
 }
 
 /**
