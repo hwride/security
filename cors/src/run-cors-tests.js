@@ -124,26 +124,26 @@ async function sendRequestAndCaptureScriptData(page, url, expectBlockedRequest) 
     const requestBrowser = await waitForRequestPromise
     return {
         cdpRequestID: requestBrowser._requestId,
-        requestSeenByScript: responseScript.request,
-        responseSeenByScript: responseScript.response
+        requestSentByScript: responseScript.request,
+        responseReceivedByScript: responseScript.response
     }
 }
 
 function printRequestDataSimple(allRequestData) {
     allRequestData.forEach(requestData => {
         const {
-            requestSeenByScript,
+            requestSentByScript,
             requestSentByBrowser,
             responseReceivedByBrowser,
-            responseSeenByScript
+            responseReceivedByScript
         } = requestData
         let out = `${requestData.name}\n`
         out += `${requestSentByBrowser.request.method} ${requestSentByBrowser.request.url}`
         const emptyCheck = (obj, key) => obj[key] != null ? obj[key] : `[No ${key}]`
         out += `\n${emptyCheck(responseReceivedByBrowser.response, 'status')} `
         out += `${emptyCheck(responseReceivedByBrowser.response, 'statusText')}`
-        if(responseSeenByScript.error) {
-            out += `\nScript received an error: ${responseSeenByScript.error}`
+        if(responseReceivedByScript.error) {
+            out += `\nScript received an error: ${responseReceivedByScript.error}`
         }
         out += '\n'
         logger.info(out)
