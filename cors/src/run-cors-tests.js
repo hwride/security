@@ -10,16 +10,6 @@ const SERVER_2 = 'http://localhost:8081'
 
 runCorsTests()
 
-/*
- Ideal data:
- name
- request data from script
- request data from browser
- whether server processes request
- response data to browser
- response data to script
- */
-
 async function runCorsTests() {
     setupLogging()
     const servers = setupServers()
@@ -102,7 +92,10 @@ async function makeRequests(page, browserRawCDPRequestData, requestsToMake) {
 
     // Ensure requests happen one at a time so all event capturing we are doing lines up correctly.
     for(const request of requestsToMake) {
-        logger.info(`Processing request: ${request.name}...`)
+        const requestMsg = `Processing request: ${request.name}`
+        logger.info('-'.repeat(requestMsg.length))
+        logger.info(requestMsg)
+        logger.info('-'.repeat(requestMsg.length))
 
         const thisRequestData = {
             name: request.name
@@ -116,6 +109,7 @@ async function makeRequests(page, browserRawCDPRequestData, requestsToMake) {
 
         Object.assign(thisRequestData, await sendRequestAndCaptureScriptData(page, request.url, request.expectBlockedRequest))
         page.off('console', captureConsoleMessage)
+        logger.info('')
     }
 
     // Merge the browser request data with the CDP logged request data.
@@ -142,6 +136,10 @@ async function sendRequestAndCaptureScriptData(page, url, expectBlockedRequest) 
 }
 
 function printRequestDataSimple(allRequestData) {
+    const logMsg = 'Request results'
+    logger.info('-'.repeat(logMsg.length))
+    logger.info(logMsg)
+    logger.info('-'.repeat(logMsg.length))
     allRequestData.forEach(requestData => {
         const {
             requestSentByScript,
