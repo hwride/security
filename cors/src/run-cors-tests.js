@@ -1,8 +1,9 @@
 const puppeteer = require('puppeteer')
 const { setupServers, shutdownServers } = require('./servers')
 const { sendCapturingOfBrowserRequestData, mergeRawCDPRequestData } = require('./cdp-request-logging')
-const { setupLogging, createLogger } = require('./logging')
-var logger = createLogger('run-cors-tests')
+const { setupLogging, createLogger, logColours } = require('./logging')
+
+const logger = createLogger('run-cors-tests')
 
 const SERVER_1 = 'http://localhost:8080'
 const SERVER_2 = 'http://localhost:8081'
@@ -98,13 +99,24 @@ async function setupPageUtilFunctions(page) {
  */
 async function makeRequests(page, browserRawCDPRequestData, requestsToMake) {
     const requestData = []
-    await Promise.all(requestsToMake.map(async (request) => {
+
+    // Ensure requests happen one at a time so all event capturing we are doing lines up correctly.
+    for(const request of requestsToMake) {
+        logger.info(`Processing request: ${request.name}...`)
+
         const thisRequestData = {
             name: request.name
         }
         requestData.push(thisRequestData)
+
+        // Capture console data for this request.
+        thisRequestData.consoleMessages = []
+        const captureConsoleMessage = msg => thisRequestData.consoleMessages.push(msg)
+        page.on('console', captureConsoleMessage)
+
         Object.assign(thisRequestData, await sendRequestAndCaptureScriptData(page, request.url, request.expectBlockedRequest))
-    }))
+        page.off('console', captureConsoleMessage)
+    }
 
     // Merge the browser request data with the CDP logged request data.
     const cdpRequestData = mergeRawCDPRequestData(browserRawCDPRequestData)
@@ -135,16 +147,39 @@ function printRequestDataSimple(allRequestData) {
             requestSentByScript,
             requestSentByBrowser,
             responseReceivedByBrowser,
-            responseReceivedByScript
+            responseReceivedByScript,
+            consoleMessages,
         } = requestData
         let out = `${requestData.name}\n`
+
+        // Request.
         out += `${requestSentByBrowser.request.method} ${requestSentByBrowser.request.url}`
+
+        // Response.
         const emptyCheck = (obj, key) => obj[key] != null ? obj[key] : `[No ${key}]`
         out += `\n${emptyCheck(responseReceivedByBrowser.response, 'status')} `
         out += `${emptyCheck(responseReceivedByBrowser.response, 'statusText')}`
+
+        // Errors.
         if(responseReceivedByScript.error) {
-            out += `\nScript received an error: ${responseReceivedByScript.error}`
+            out += logColours.ERROR(`\nScript received an error: ${responseReceivedByScript.error}`)
         }
+
+        // Console messages.
+        if(consoleMessages.length > 0) {
+            out += `\nConsole messages: `
+            consoleMessages.forEach(msg => {
+                let logLevel
+                if(msg.type() === 'error') {
+                    logLevel = 'ERROR'
+                } else {
+                    logLevel = 'INFO'
+                }
+                const colourFunc = logColours[logLevel]
+                out += '\n' + colourFunc(`[${logLevel}] ${msg.text()}`)
+            })
+        }
+
         out += '\n'
         logger.info(out)
     })

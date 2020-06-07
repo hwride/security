@@ -6,7 +6,7 @@ const prefix = require('loglevel-plugin-prefix')
 // Setup prefix plugin.
 prefix.reg(loglevel)
 // Apply prefix to root logger so all other loggers inherit.
-const logColours = {
+const logColours = exports.logColours = {
     TRACE: chalk.magenta,
     DEBUG: chalk.cyan,
     INFO: chalk.blue,
