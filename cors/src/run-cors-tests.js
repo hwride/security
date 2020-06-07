@@ -157,6 +157,8 @@ function printRequestDataSimple(allRequestData) {
         const emptyCheck = (obj, key) => obj[key] != null ? obj[key] : `[No ${key}]`
         out += `\n${emptyCheck(responseReceivedByBrowser.response, 'status')} `
         out += `${emptyCheck(responseReceivedByBrowser.response, 'statusText')}`
+        out += `\nBrowser body: ${emptyCheck(responseReceivedByBrowser.response, 'body')}`
+        out += `\nScript body: ${emptyCheck(responseReceivedByScript, 'body')}`
 
         // Errors.
         if(responseReceivedByScript.error) {

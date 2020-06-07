@@ -22,10 +22,28 @@ exports.sendCapturingOfBrowserRequestData = async function(page) {
     await cdpSession.send('Network.enable')
     const cdpRequestDataRaw = {}
     const addCDPRequestDataListener = (eventName) => {
-        cdpSession.on(eventName, request => {
+        cdpSession.on(eventName, async (request) => {
             logger.debug(`${eventName}: ${JSON.stringify(request, null, 2)}`)
-            cdpRequestDataRaw[request.requestId] = cdpRequestDataRaw[request.requestId] || {}
-            Object.assign(cdpRequestDataRaw[request.requestId], { [eventName]: request })
+            const requestData = cdpRequestDataRaw[request.requestId] = cdpRequestDataRaw[request.requestId] || {}
+            const eventData = { [eventName]: request }
+
+            // If this is a response capture the body as well.
+            if(eventName === CDP_EVT_RESPONSE || eventName === CDP_EVT_RESPONSE_EXTRA) {
+                try {
+                    const responseBody = await cdpSession.send('Network.getResponseBody', {
+                        requestId: request.requestId
+                    })
+                    eventData[eventName].response.body = responseBody.body
+                } catch(e) {
+                    // Handle error where no data is found (in that case leave body as null.
+                    if(e.message !== 'Protocol error (Network.getResponseBody): No data found for resource with ' +
+                        'given identifier') {
+                        throw e
+                    }
+                }
+            }
+
+            Object.assign(requestData, eventData)
         })
     }
     addCDPRequestDataListener(CDP_EVT_REQUEST)
@@ -36,8 +54,8 @@ exports.sendCapturingOfBrowserRequestData = async function(page) {
 }
 
 /**
- * Given the raw CDP request data captured by sendCapturingOfBrowserRequestData, will merge together the separate request
- * and response main and extra info. Only call this when all requests have completely finished.
+ * Given the raw CDP request data captured by sendCapturingOfBrowserRequestData, will merge together the separate
+ * request and response main and extra info. Only call this when all requests have completely finished.
  */
 exports.mergeRawCDPRequestData = function(cdpRequestDataRaw) {
     const mergedCDPRequestDataMap = {}
