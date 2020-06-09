@@ -1,6 +1,6 @@
 module.exports = {
     log: {
-        'run-cors-tests': 'INFO',
+        'run-cors-tests': 'DEBUG',
         'cdp-request-logging': 'INFO'
     }
 }

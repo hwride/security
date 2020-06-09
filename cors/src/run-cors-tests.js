@@ -1,12 +1,15 @@
 const puppeteer = require('puppeteer')
+const path = require('path')
 const { setupServers, shutdownServers } = require('./servers')
 const { sendCapturingOfBrowserRequestData, mergeRawCDPRequestData } = require('./cdp-request-logging')
 const { setupLogging, createLogger, logColours } = require('./logging')
+const saveResultsAsHTML = require('./results-html-creator')
 
 const logger = createLogger('run-cors-tests')
 
 const SERVER_1 = 'http://localhost:8080'
 const SERVER_2 = 'http://localhost:8081'
+const RESULTS_PATH = path.resolve(__dirname + '/../generated/results.html')
 
 runCorsTests()
 
@@ -32,8 +35,15 @@ async function runCorsTests() {
         { name: 'Different origin, regular endpoint', url: `${SERVER_2}/regular-endpoint`, expectBlockedRequest: true },
         { name: 'Different origin, CORS enabled endpoint', url: `${SERVER_2}/cors-enabled-endpoint` }
     ])
+
+    // Write results
     logger.debug(JSON.stringify(allRequestData, null, 2))
     printRequestDataSimple(allRequestData)
+
+    const resultsDir = path.dirname(RESULTS_PATH)
+    if(fs.existsSync(resultsDir)) fs.rmdirSync(resultsDir, { recursive: true })
+    fs.mkdirSync(resultsDir)
+    saveResultsAsHTML(allRequestData, RESULTS_PATH)
 
     // Tear down browser.
     await browser.close();
@@ -65,8 +75,7 @@ async function setupPageUtilFunctions(page) {
                 },
                 response: {
                     type: response.type,
-                    headers: JSON.stringify(response.headers, null , 2),
-                    bodyNonNull: response.body != null
+                    headers: JSON.stringify(response.headers, null , 2)
                 }
             }
             if(response instanceof Error) {
