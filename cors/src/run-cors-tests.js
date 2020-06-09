@@ -121,6 +121,11 @@ async function makeRequests(page, browserRawCDPRequestData, requestsToMake) {
         logger.info('')
     }
 
+    // Sometimes at least the final request did not have the information provided by Network.responseReceivedExtraInfo
+    // event. Not sure how to ensure we know if that event has been fired or not. Blunt hack here to just wait a second
+    // at the end for any of these events to filter through.
+    await new Promise(resolve => setTimeout(resolve, 1000))
+
     // Merge the browser request data with the CDP logged request data.
     const cdpRequestData = mergeRawCDPRequestData(browserRawCDPRequestData)
     requestData.forEach(singleRequestData => {
