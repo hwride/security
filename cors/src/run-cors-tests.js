@@ -32,33 +32,39 @@ async function runCorsTests() {
     // Make test requests.
     const allRequestData = await makeRequests(page, browserRawCDPRequestData, [
         {
-            name: 'Same-origin, regular endpoint',
-            url: `${SERVER_1}/regular-endpoint`
+            name: 'Origin: same<br/>CORS aware: <span class="error">no</span>',
+            notes: `This is just a regular request.`,
+            url: `${SERVER_1}/regular-endpoint`,
+            requestOptions: { mode: 'same-origin' },
         },
         {
-            name: 'Same-origin, CORS none allowed endpoint',
+            name: 'Origin: same<br/>CORS aware: <span class="success">yes</span><br/>Allowed origins: <span class="error">none</span>',
+            notes: `This shows even with CORS disabled the same origin can still use the endpoint.`,
             url: `${SERVER_1}/cors-disabled-endpoint`,
-            notes: `This shows even with CORS disabled the same origin can still use the endpoint.`
+            requestOptions: { mode: 'same-origin' },
         },
         {
-            name: 'Different origin, regular endpoint',
+            name: 'Origin: cross<br/>CORS aware: <span class="error">no</span>',
+            notes: `The CORS protocol is designed to work without any changes to existing server implementations. This
+means a request to an endpoint with no CORS knowledge will be sent and processed, but the response won't be exposed
+to the client.`,
             url: `${SERVER_2}/regular-endpoint`,
             expectBlockedRequest: true
         },
         {
-            name: 'Different origin, regular endpoint, no CORS',
+            name: 'Origin: cross<br/>CORS aware: <span class="error">no</span><br/><code>mode: \'no-cors\'</code>',
             url: `${SERVER_2}/regular-endpoint`,
             requestOptions: { mode: 'no-cors' },
             notes: `When <code>mode: no-cors</code> is enabled cross-origin requests can be made if using a simple 
 request. But note the response is opaque - nothing is readable by the script.`
         },
         {
-            name: 'Different origin, CORS none allowed endpoint',
+            name: 'Origin: cross<br/>CORS aware: <span class="success">yes</span><br/>Allowed origins: <span class="error">none</span>',
             url: `${SERVER_2}/cors-disabled-endpoint`,
             expectBlockedRequest: true
         },
         {
-            name: 'Different origin, CORS all allowed endpoint',
+            name: 'Origin: cross<br/>CORS aware: <span class="success">yes</span><br/>Allowed origins: <span class="success">none</span>',
             url: `${SERVER_2}/cors-all-allowed-endpoint`
         }
     ])

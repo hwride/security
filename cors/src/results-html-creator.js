@@ -20,6 +20,9 @@ module.exports = function createResultsHTML(requestsData, outputPath) {
         td {
             vertical-align: top;
         }
+        td:first-child {
+            white-space: nowrap;
+        }
         .pre {
             white-space: pre;
         }
