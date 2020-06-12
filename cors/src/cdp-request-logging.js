@@ -28,11 +28,13 @@ exports.sendCapturingOfBrowserRequestData = async function(page) {
             const eventData = { [eventName]: request }
 
             // If this is a response capture the body as well.
+            // Seems like the browser is not aware of fetch mode: 'no-cors' response bodies.
             if(eventName === CDP_EVT_RESPONSE || eventName === CDP_EVT_RESPONSE_EXTRA) {
                 try {
                     const responseBody = await cdpSession.send('Network.getResponseBody', {
                         requestId: request.requestId
                     })
+                    logger.debug(`[${request.requestId}].Network.getResponseBody: ${responseBody.body}`)
                     eventData[eventName].response.body = responseBody.body
                 } catch(e) {
                     // Handle error where no data is found (in that case leave body as null.

@@ -31,12 +31,39 @@ async function runCorsTests() {
 
     // Make test requests.
     const allRequestData = await makeRequests(page, browserRawCDPRequestData, [
-        { name: 'Same-origin, regular endpoint', url: `${SERVER_1}/regular-endpoint` },
-        { name: 'Same-origin, CORS none allowed endpoint', url: `${SERVER_1}/cors-disabled-endpoint` },
-        { name: 'Same-origin, CORS all allowed endpoint', url: `${SERVER_1}/cors-all-allowed-endpoint` },
-        { name: 'Different origin, regular endpoint', url: `${SERVER_2}/regular-endpoint`, expectBlockedRequest: true },
-        { name: 'Different origin, CORS none allowed endpoint', url: `${SERVER_2}/cors-disabled-endpoint`, expectBlockedRequest: true },
-        { name: 'Different origin, CORS all allowed endpoint', url: `${SERVER_2}/cors-all-allowed-endpoint` }
+        {
+            name: 'Same-origin, regular endpoint',
+            url: `${SERVER_1}/regular-endpoint`
+        },
+        {
+            name: 'Same-origin, CORS none allowed endpoint',
+            url: `${SERVER_1}/cors-disabled-endpoint`
+        },
+        {
+            name: 'Same-origin, CORS all allowed endpoint',
+            url: `${SERVER_1}/cors-all-allowed-endpoint`
+        },
+        {
+            name: 'Different origin, regular endpoint',
+            url: `${SERVER_2}/regular-endpoint`,
+            expectBlockedRequest: true
+        },
+        {
+            name: 'Different origin, regular endpoint, no CORS',
+            url: `${SERVER_2}/regular-endpoint`,
+            requestOptions: { mode: 'no-cors' },
+            notes: `When <code>mode: no-cors</code> is enabled cross-origin requests can be made if using a simple 
+request. But note the response is opaque - nothing is readable by the script.`
+        },
+        {
+            name: 'Different origin, CORS none allowed endpoint',
+            url: `${SERVER_2}/cors-disabled-endpoint`,
+            expectBlockedRequest: true
+        },
+        {
+            name: 'Different origin, CORS all allowed endpoint',
+            url: `${SERVER_2}/cors-all-allowed-endpoint`
+        }
     ])
 
     // Write results
@@ -85,7 +112,7 @@ async function setupPageUtilFunctions(page) {
                 data.response.error = `${response.name}: ${response.message}`
             }
             if(readBody) {
-                data.response.body = JSON.stringify(await response.json())
+                data.response.body = await response.text()
             }
             return data
         }
@@ -110,7 +137,8 @@ async function makeRequests(page, browserRawCDPRequestData, requestsToMake) {
         logger.info('-'.repeat(requestMsg.length))
 
         const thisRequestData = {
-            name: request.name
+            name: request.name,
+            notes: request.notes
         }
         requestData.push(thisRequestData)
 
@@ -119,7 +147,7 @@ async function makeRequests(page, browserRawCDPRequestData, requestsToMake) {
         const captureConsoleMessage = msg => thisRequestData.consoleMessages.push(msg)
         page.on('console', captureConsoleMessage)
 
-        Object.assign(thisRequestData, await sendRequestAndCaptureScriptData(page, request.url, request.expectBlockedRequest))
+        Object.assign(thisRequestData, await sendRequestAndCaptureScriptData(page, request.url, request.requestOptions, request.expectBlockedRequest))
         page.off('console', captureConsoleMessage)
         logger.info('')
     }
@@ -139,11 +167,11 @@ async function makeRequests(page, browserRawCDPRequestData, requestsToMake) {
     return requestData
 }
 
-async function sendRequestAndCaptureScriptData(page, url, expectBlockedRequest) {
+async function sendRequestAndCaptureScriptData(page, url, requestOptions, expectBlockedRequest) {
     const waitForRequestPromise = page.waitForRequest(url)
-    const responseScript = await page.evaluate((url, expectBlockedRequest) => {
-        return sendRequestAndCaptureDataScript(url, {}, !expectBlockedRequest)
-    }, url, expectBlockedRequest)
+    const responseScript = await page.evaluate((url, requestOptions = {}, expectBlockedRequest) => {
+        return sendRequestAndCaptureDataScript(url, requestOptions, !expectBlockedRequest)
+    }, url, requestOptions, expectBlockedRequest)
     const requestBrowser = await waitForRequestPromise
     return {
         cdpRequestID: requestBrowser._requestId,

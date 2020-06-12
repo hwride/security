@@ -43,6 +43,7 @@ module.exports = function createResultsHTML(requestsData, outputPath) {
         <thead>
             <tr>
                 <th>Name</th>
+                <th>Notes</th>
                 <th>Request seen by script</th>
                 <th>Request sent by browser</th>
                 <th>Response received by browser</th>
@@ -53,6 +54,8 @@ module.exports = function createResultsHTML(requestsData, outputPath) {
 `
     requestsData.forEach(requestData => {
         const {
+            name,
+            notes,
             requestSentByScript,
             requestSentByBrowser,
             responseReceivedByBrowser,
@@ -63,7 +66,8 @@ module.exports = function createResultsHTML(requestsData, outputPath) {
         const addTD = contents => html += `\t\t\t<td>${contents}</td>\n`
         html += '        <tr>\n'
 
-        addTD(requestData.name)
+        addTD(name)
+        addTD(getNotesHTML(notes))
         addTD(getScriptRequestHTML(requestSentByScript))
         addTD(getBrowserRequestHTML(requestSentByBrowser))
         addTD(getBrowserResponseHTML(responseReceivedByBrowser))
@@ -140,6 +144,10 @@ function getConsoleHTML(consoleMessages) {
         consoleMessagesStr += `>[${logLevel}] ${msg.text()}</p>`
     })
     return `<code>${consoleMessagesStr}</code>`
+}
+
+function getNotesHTML(notes) {
+    return notes != null ? notes : ''
 }
 
 function getScriptObjectHTML(object) {
