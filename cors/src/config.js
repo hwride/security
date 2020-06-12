@@ -3,7 +3,7 @@ module.exports = {
         headless: true
     },
     log: {
-        'run-cors-tests': 'DEBUG',
+        'run-cors-tests': 'INFO',
         'cdp-request-logging': 'INFO'
     }
 }
