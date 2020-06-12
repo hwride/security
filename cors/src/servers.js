@@ -6,7 +6,7 @@ exports.setupServers = function() {
     // Server 1 is be the origin server, it will server the HTML of the main page.
     logger.info('Setting up server 1...')
     const server1 = createServer(8080)
-    server1.app.use(express.static('public'))
+    server1.app.use(express.static(__dirname + '/public'))
 
     // Server 2 is the cross-origin server.
     logger.info('Setting up server 2...')
