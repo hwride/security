@@ -37,11 +37,8 @@ async function runCorsTests() {
         },
         {
             name: 'Same-origin, CORS none allowed endpoint',
-            url: `${SERVER_1}/cors-disabled-endpoint`
-        },
-        {
-            name: 'Same-origin, CORS all allowed endpoint',
-            url: `${SERVER_1}/cors-all-allowed-endpoint`
+            url: `${SERVER_1}/cors-disabled-endpoint`,
+            notes: `This shows even with CORS disabled the same origin can still use the endpoint.`
         },
         {
             name: 'Different origin, regular endpoint',

@@ -31,17 +31,20 @@ function createServer(port) {
     // Setup endpoints.
     app.get('/regular-endpoint', function (req, res) {
         logger.info('regular-endpoint request received')
-        res.json({msg: 'This is a non CORS response message.'})
+        res.setHeader('Content-Type', 'text/plain')
+        res.send('This is a non CORS response message.')
     })
     app.get('/cors-disabled-endpoint', cors({
         origin: false // Disables CORS
     }), function (req, res) {
         logger.info('cors-disabled-endpoint request received')
-        res.json({msg: 'This is a CORS-disabled response message.'})
+        res.setHeader('Content-Type', 'text/plain')
+        res.send('This is a CORS-disabled response message.')
     })
     app.get('/cors-all-allowed-endpoint', cors(), function (req, res) {
         logger.info('cors-all-allowed-endpoint request received')
-        res.json({msg: 'This is a CORS-enabled response message.'})
+        res.setHeader('Content-Type', 'text/plain')
+        res.send('This is a CORS-enabled response message.')
     })
 
     // Listen.

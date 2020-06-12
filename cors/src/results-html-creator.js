@@ -91,8 +91,6 @@ function getScriptRequestHTML(requestSentByScript) {
 function getBrowserRequestHTML(requestSentByBrowser) {
     let html = `${requestSentByBrowser.request.method} ${requestSentByBrowser.request.url}`
     html += getHeaderStr(requestSentByBrowser.request.headers, /Accept$/)
-    html += getHeaderStr(requestSentByBrowser.request.headers, /Host/)
-    html += getHeaderStr(requestSentByBrowser.request.headers, /Referer/)
     html += getHeaderStr(requestSentByBrowser.request.headers, /Origin/)
     return getCodePre(html)
 }
