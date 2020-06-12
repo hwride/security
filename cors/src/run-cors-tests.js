@@ -4,6 +4,7 @@ const { setupServers, shutdownServers } = require('./servers')
 const { sendCapturingOfBrowserRequestData, mergeRawCDPRequestData } = require('./cdp-request-logging')
 const { setupLogging, createLogger, logColours } = require('./logging')
 const saveResultsAsHTML = require('./results-html-creator')
+const config = require('./config')
 
 const logger = createLogger('run-cors-tests')
 
@@ -18,7 +19,7 @@ async function runCorsTests() {
     const servers = setupServers()
 
     // Setup browser.
-    const browser = await puppeteer.launch()
+    const browser = await puppeteer.launch(config.puppeteer)
 
     // Setup page.
     const page = await browser.newPage()
