@@ -193,7 +193,7 @@ async function sendRequestAndCaptureScriptData(page, url, requestOptions, expect
     const requestBrowser = await waitForRequestPromise
     return {
         cdpRequestID: expectBlockedRequest ? null : requestBrowser._requestId,
-        requestSentByScript: expectBlockedRequest ? null : responseScript.request,
+        requestSentByScript: responseScript.request,
         responseReceivedByScript: responseScript.response
     }
 }
