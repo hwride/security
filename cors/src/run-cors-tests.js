@@ -32,9 +32,11 @@ async function runCorsTests() {
     // Make test requests.
     const allRequestData = await makeRequests(page, browserRawCDPRequestData, [
         { name: 'Same-origin, regular endpoint', url: `${SERVER_1}/regular-endpoint` },
-        { name: 'Same-origin, CORS enabled endpoint', url: `${SERVER_1}/cors-enabled-endpoint` },
+        { name: 'Same-origin, CORS none allowed endpoint', url: `${SERVER_1}/cors-disabled-endpoint` },
+        { name: 'Same-origin, CORS all allowed endpoint', url: `${SERVER_1}/cors-all-allowed-endpoint` },
         { name: 'Different origin, regular endpoint', url: `${SERVER_2}/regular-endpoint`, expectBlockedRequest: true },
-        { name: 'Different origin, CORS enabled endpoint', url: `${SERVER_2}/cors-enabled-endpoint` }
+        { name: 'Different origin, CORS none allowed endpoint', url: `${SERVER_2}/cors-disabled-endpoint`, expectBlockedRequest: true },
+        { name: 'Different origin, CORS all allowed endpoint', url: `${SERVER_2}/cors-all-allowed-endpoint` }
     ])
 
     // Write results

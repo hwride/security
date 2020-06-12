@@ -28,13 +28,19 @@ exports.shutdownServers = function(servers) {
 function createServer(port) {
     const app = express()
 
-    // Setup a regular and CORS enabled endpoint.
+    // Setup endpoints.
     app.get('/regular-endpoint', function (req, res) {
         logger.info('regular-endpoint request received')
         res.json({msg: 'This is a non CORS response message.'})
     })
-    app.get('/cors-enabled-endpoint', cors(), function (req, res) {
-        logger.info('cors-enabled-endpoint request received')
+    app.get('/cors-disabled-endpoint', cors({
+        origin: false // Disables CORS
+    }), function (req, res) {
+        logger.info('cors-disabled-endpoint request received')
+        res.json({msg: 'This is a CORS-disabled response message.'})
+    })
+    app.get('/cors-all-allowed-endpoint', cors(), function (req, res) {
+        logger.info('cors-all-allowed-endpoint request received')
         res.json({msg: 'This is a CORS-enabled response message.'})
     })
 
