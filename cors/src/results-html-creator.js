@@ -92,6 +92,7 @@ function getScriptRequestHTML(requestSentByScript) {
 }
 
 function getBrowserRequestHTML(requestSentByBrowser) {
+    if(requestSentByBrowser == null) return 'None'
     let html = `${requestSentByBrowser.request.method} ${requestSentByBrowser.request.url}`
     html += getHeaderStr(requestSentByBrowser.request.headers, /Accept$/)
     html += getHeaderStr(requestSentByBrowser.request.headers, /Origin/)
@@ -99,6 +100,8 @@ function getBrowserRequestHTML(requestSentByBrowser) {
 }
 
 function getBrowserResponseHTML(responseReceivedByBrowser) {
+    if(responseReceivedByBrowser == null) return 'None'
+
     let responseStr = ''
 
     // Status.
@@ -123,7 +126,9 @@ function getBrowserResponseHTML(responseReceivedByBrowser) {
 }
 
 function getScriptResponseHTML(responseReceivedByScript) {
-    if(responseReceivedByScript.error != null) {
+    if(responseReceivedByScript == null) {
+        return 'None'
+    } else if(responseReceivedByScript.error != null) {
         return `<code class="pre console-error">${responseReceivedByScript.error}</code>`
     } else {
         return getScriptObjectHTML(responseReceivedByScript)
@@ -152,6 +157,8 @@ function getNotesHTML(notes) {
 }
 
 function getScriptObjectHTML(object) {
+    if(object == null) return 'None'
+
     let html = `<code class="pre">`
     Object.entries(object).forEach(([key, value]) => {
         html += `${key}: ${JSON.stringify(value, null, 2)}\n`

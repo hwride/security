@@ -49,29 +49,41 @@ async function runCorsTests() {
 means a request to an endpoint with no CORS knowledge will be sent and processed, but the response won't be exposed
 to the client.`,
             url: `${SERVER_2}/regular-endpoint`,
-            expectBlockedRequest: true
+            expectNoResponseBody: true
         },
         {
             name: 'Origin: cross<br/>CORS aware: <span class="error">no</span><br/><code>mode: \'no-cors\'</code>',
             url: `${SERVER_2}/regular-endpoint`,
             requestOptions: { mode: 'no-cors' },
-            notes: `When <code>mode: no-cors</code> is enabled cross-origin requests can be made if using a simple 
+            notes: `When <code>mode: no-cors</code> is enabled cross-origin requests can be made if using a simple
 request. But note the response is opaque - nothing is readable by the script.`
         },
         {
             name: 'Origin: cross<br/>CORS aware: <span class="success">yes</span><br/>Allowed origins: <span class="error">none</span>',
+            notes: `A cross-origin request denied due to server configuration.`,
             url: `${SERVER_2}/cors-disabled-endpoint`,
-            expectBlockedRequest: true
+            expectNoResponseBody: true
         },
         {
-            name: 'Origin: cross<br/>CORS aware: <span class="success">yes</span><br/>Allowed origins: <span class="success">none</span>',
+            name: 'Origin: cross<br/>CORS aware: <span class="success">yes</span><br/>Allowed origins: <span class="success">all</span>',
+            notes: `A cross-origin request allowed due to server configuration.`,
             url: `${SERVER_2}/cors-all-allowed-endpoint`
+        },
+        {
+            name: `Origin: cross<br/>CORS aware: <span class="success">yes</span><br/>
+Allowed origins: <span class="success">all</span><br/>
+<code>mode: 'same-origin'</code>`,
+            notes: `If you try and make a cross-origin request with <code>mode: 'same-origin'</code> it will fail before
+the request is even sent, even for a endpoint that would support cross-origin requests for that origin.`,
+            url: `${SERVER_2}/cors-all-allowed-endpoint`,
+            requestOptions: { mode: 'same-origin' },
+            expectNoResponseBody: true,
+            expectBlockedRequest: true
         }
     ])
 
     // Write results
     logger.debug(JSON.stringify(allRequestData, null, 2))
-    printRequestDataSimple(allRequestData)
 
     const resultsDir = path.dirname(RESULTS_PATH)
     if(fs.existsSync(resultsDir)) fs.rmdirSync(resultsDir, { recursive: true })
@@ -141,7 +153,9 @@ async function makeRequests(page, browserRawCDPRequestData, requestsToMake) {
 
         const thisRequestData = {
             name: request.name,
-            notes: request.notes
+            notes: request.notes,
+            expectBlockedRequest: request.expectBlockedRequest,
+            expectNoResponseBody: request.expectNoResponseBody,
         }
         requestData.push(thisRequestData)
 
@@ -150,7 +164,8 @@ async function makeRequests(page, browserRawCDPRequestData, requestsToMake) {
         const captureConsoleMessage = msg => thisRequestData.consoleMessages.push(msg)
         page.on('console', captureConsoleMessage)
 
-        Object.assign(thisRequestData, await sendRequestAndCaptureScriptData(page, request.url, request.requestOptions, request.expectBlockedRequest))
+        Object.assign(thisRequestData, await sendRequestAndCaptureScriptData(page, request.url, request.requestOptions,
+          request.expectNoResponseBody, request.expectBlockedRequest))
         page.off('console', captureConsoleMessage)
         logger.info('')
     }
@@ -164,71 +179,21 @@ async function makeRequests(page, browserRawCDPRequestData, requestsToMake) {
     const cdpRequestData = mergeRawCDPRequestData(browserRawCDPRequestData)
     requestData.forEach(singleRequestData => {
         const cdpDataForRequest = cdpRequestData[singleRequestData.cdpRequestID]
-        singleRequestData.requestSentByBrowser = cdpDataForRequest.request
-        singleRequestData.responseReceivedByBrowser = cdpDataForRequest.response
+        singleRequestData.requestSentByBrowser = singleRequestData.expectBlockedRequest ? null : cdpDataForRequest.request
+        singleRequestData.responseReceivedByBrowser = singleRequestData.expectBlockedRequest ? null : cdpDataForRequest.response
     })
     return requestData
 }
 
-async function sendRequestAndCaptureScriptData(page, url, requestOptions, expectBlockedRequest) {
-    const waitForRequestPromise = page.waitForRequest(url)
-    const responseScript = await page.evaluate((url, requestOptions = {}, expectBlockedRequest) => {
-        return sendRequestAndCaptureDataScript(url, requestOptions, !expectBlockedRequest)
-    }, url, requestOptions, expectBlockedRequest)
+async function sendRequestAndCaptureScriptData(page, url, requestOptions, expectNoResponseBody, expectBlockedRequest) {
+    const waitForRequestPromise = expectBlockedRequest ? Promise.resolve() : page.waitForRequest(url)
+    const responseScript = await page.evaluate((url, requestOptions = {}, expectNoResponseBody) => {
+        return sendRequestAndCaptureDataScript(url, requestOptions, !expectNoResponseBody)
+    }, url, requestOptions, expectNoResponseBody)
     const requestBrowser = await waitForRequestPromise
     return {
-        cdpRequestID: requestBrowser._requestId,
-        requestSentByScript: responseScript.request,
+        cdpRequestID: expectBlockedRequest ? null : requestBrowser._requestId,
+        requestSentByScript: expectBlockedRequest ? null : responseScript.request,
         responseReceivedByScript: responseScript.response
     }
-}
-
-function printRequestDataSimple(allRequestData) {
-    const logMsg = 'Request results'
-    logger.info('-'.repeat(logMsg.length))
-    logger.info(logMsg)
-    logger.info('-'.repeat(logMsg.length))
-    allRequestData.forEach(requestData => {
-        const {
-            requestSentByScript,
-            requestSentByBrowser,
-            responseReceivedByBrowser,
-            responseReceivedByScript,
-            consoleMessages,
-        } = requestData
-        let out = `${requestData.name}\n`
-
-        // Request.
-        out += `${requestSentByBrowser.request.method} ${requestSentByBrowser.request.url}`
-
-        // Response.
-        const emptyCheck = (obj, key) => obj[key] != null ? obj[key] : `[No ${key}]`
-        out += `\n${emptyCheck(responseReceivedByBrowser.response, 'status')} `
-        out += `${emptyCheck(responseReceivedByBrowser.response, 'statusText')}`
-        out += `\nBrowser body: ${emptyCheck(responseReceivedByBrowser.response, 'body')}`
-        out += `\nScript body: ${emptyCheck(responseReceivedByScript, 'body')}`
-
-        // Errors.
-        if(responseReceivedByScript.error) {
-            out += logColours.ERROR(`\nScript received an error: ${responseReceivedByScript.error}`)
-        }
-
-        // Console messages.
-        if(consoleMessages.length > 0) {
-            out += `\nConsole messages: `
-            consoleMessages.forEach(msg => {
-                let logLevel
-                if(msg.type() === 'error') {
-                    logLevel = 'ERROR'
-                } else {
-                    logLevel = 'INFO'
-                }
-                const colourFunc = logColours[logLevel]
-                out += '\n' + colourFunc(`[${logLevel}] ${msg.text()}`)
-            })
-        }
-
-        out += '\n'
-        logger.info(out)
-    })
 }
