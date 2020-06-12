@@ -19,6 +19,8 @@ module.exports = function createResultsHTML(requestsData, outputPath) {
         }
         td {
             vertical-align: top;
+            max-width: 50ch;
+            overflow: auto;
         }
         td:first-child {
             white-space: nowrap;
@@ -48,8 +50,8 @@ module.exports = function createResultsHTML(requestsData, outputPath) {
                 <th>Name</th>
                 <th>Notes</th>
                 <th>Request seen by script</th>
-                <th>Request sent by browser</th>
-                <th>Response received by browser</th>
+                <th>Request sent to server</th>
+                <th>Response sent by server</th>
                 <th>Response seen by script</th>
                 <th>Console</th>
             </tr>
@@ -60,8 +62,6 @@ module.exports = function createResultsHTML(requestsData, outputPath) {
             name,
             notes,
             requestSentByScript,
-            requestSentByBrowser,
-            responseReceivedByBrowser,
             responseReceivedByScript,
             consoleMessages,
         } = requestData
@@ -72,8 +72,8 @@ module.exports = function createResultsHTML(requestsData, outputPath) {
         addTD(name)
         addTD(getNotesHTML(notes))
         addTD(getScriptRequestHTML(requestSentByScript))
-        addTD(getBrowserRequestHTML(requestSentByBrowser))
-        addTD(getBrowserResponseHTML(responseReceivedByBrowser))
+        addTD(getServerRequestHTML(requestData))
+        addTD(getServerResponseHTML(requestData))
         addTD(getScriptResponseHTML(responseReceivedByScript))
         addTD(getConsoleHTML(consoleMessages))
 
@@ -91,38 +91,55 @@ function getScriptRequestHTML(requestSentByScript) {
     return getScriptObjectHTML(requestSentByScript)
 }
 
-function getBrowserRequestHTML(requestSentByBrowser) {
-    if(requestSentByBrowser == null) return 'None'
-    let html = `${requestSentByBrowser.request.method} ${requestSentByBrowser.request.url}`
-    html += getHeaderStr(requestSentByBrowser.request.headers, /Accept$/)
-    html += getHeaderStr(requestSentByBrowser.request.headers, /Origin/)
-    return getCodePre(html)
+function getServerRequestHTML(requestData) {
+    // Combining all proxy requests here for the sake of completeness, but would expect only requests from a
+    // single proxy server.
+    const proxyResponses = requestData.proxyServer1.requests.concat(requestData.proxyServer2.requests)
+    if(proxyResponses.length === 0) return 'None'
+    else {
+        let html = ''
+        proxyResponses.forEach(proxyResponse => html += getServerResponseHTMLSingle(proxyResponse) + '\n')
+        return html
+    }
+
+    function getServerResponseHTMLSingle(proxyRequest) {
+        let html = `<code class="pre">${proxyRequest.req.method} ${proxyRequest.proxyURL}${proxyRequest.req.url}`
+        html += convertRawHeadersToHTML(proxyRequest.req.rawHeaders)
+        html += `${proxyRequest.body}`
+        html += `<code>`
+        return html
+    }
 }
 
-function getBrowserResponseHTML(responseReceivedByBrowser) {
-    if(responseReceivedByBrowser == null) return 'None'
+function getServerResponseHTML(requestData) {
+    // Combining all proxy responses here for the sake of completeness, but would expect only responses from a
+    // single proxy server.
+    const proxyResponses = requestData.proxyServer1.responses.concat(requestData.proxyServer2.responses)
+    if(proxyResponses.length === 0) return 'None'
+    else {
+        let html = ''
+        proxyResponses.forEach(proxyResponse => html += getServerResponseHTMLSingle(proxyResponse) + '\n')
+        return html
+    }
 
-    let responseStr = ''
+    function getServerResponseHTMLSingle(response) {
+        let responseStr = ''
 
-    // Status.
-    let statusLine =
-        `${emptyCheck(responseReceivedByBrowser.response, 'status')} ` +
-        `${emptyCheck(responseReceivedByBrowser.response, 'statusText')}`
-    const status = responseReceivedByBrowser.response.status
-    let statusClass = status != null && (status >= 200 && status < 300) ? 'success' : 'error'
-    statusLine = `<span class="${statusClass}">${statusLine}</span>`
-    responseStr += statusLine
+        // Status.
+        const status = response.proxyRes.statusCode
+        let statusLine = `${status} ${response.proxyRes.statusMessage}`
+        let statusClass = status != null && (status >= 200 && status < 400) ? 'success' : 'error'
+        statusLine = `<span class="${statusClass}">${statusLine}</span>\n`
+        responseStr += statusLine
 
-    // Headers.
-    responseStr += getHeaderStr(responseReceivedByBrowser.response.headers, /Content-Type/)
-    responseStr += getHeaderStr(responseReceivedByBrowser.response.headers, /Access-Control.*/)
+        // Headers.
+        responseStr += convertRawHeadersToHTML(response.proxyRes.rawHeaders)
 
-    // Body.
-    responseStr += '\n' + (responseReceivedByBrowser.response.body != null ?
-        responseReceivedByBrowser.response.body :
-        `<span class="error">[No body]</span>`)
+        // Body.
+        responseStr += '\n' + (response.body != null ? response.body : `<span class="error">[No body]</span>`)
 
-    return `<code class="pre">${responseStr}</code>`
+        return `<code class="pre">${responseStr}</code>`
+    }
 }
 
 function getScriptResponseHTML(responseReceivedByScript) {
@@ -167,22 +184,25 @@ function getScriptObjectHTML(object) {
     return html
 }
 
-function getHeaderStr(headers, regex) {
+function convertRawHeadersToHTML(rawHeaders) {
+    // Convert raw headers to object.
+    const headers = {}
+    let key
+    for(const rawHeader of rawHeaders) {
+        if(!key) {
+            key = rawHeader
+        } else {
+            headers[key] = rawHeader
+            key = null
+        }
+    }
+
+    // Convert headers object to HTML.
     let headersStr = ''
     if(headers) {
         Object.entries(headers).forEach(([name, value]) => {
-            if (name.match(regex)) {
-                headersStr += `\n${name}: ${value}`
-            }
+            headersStr += `${name}: ${value}\n`
         })
     }
     return headersStr
-}
-
-function getCodePre(html) {
-    return `<code class="pre">${html}</code>`
-}
-
-function emptyCheck(obj, key) {
-    return obj[key] != null ? obj[key] : `[No ${key}]`
 }

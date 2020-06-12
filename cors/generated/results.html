@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CORS</title>
+    <style>
+        :root {
+            --error-color: #fc1b30;
+        }
+        html {
+            font-family: sans-serif;
+        }
+        table, th, td {
+            border-collapse: collapse;
+            border: 1px solid black;
+        }
+        td {
+            vertical-align: top;
+            max-width: 50ch;
+            overflow: auto;
+        }
+        td:first-child {
+            white-space: nowrap;
+        }
+        .pre {
+            white-space: pre;
+        }
+        .success {
+            color: #0bc90b;
+        }
+        .error {
+            color: var(--error-color);
+        }
+        .console-error {
+            background: #fff0f0;
+            color: var(--error-color);
+            margin: 0;
+            border-top: 1px solid #fed6d6;
+            padding: 2px;
+        }
+    </style>
+</head>
+<body>
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Notes</th>
+                <th>Request seen by script</th>
+                <th>Request sent to server</th>
+                <th>Response sent by server</th>
+                <th>Response seen by script</th>
+                <th>Console</th>
+            </tr>
+        </thead>
+        <tr>
+			<td>Origin: same<br/>CORS aware: <span class="error">no</span></td>
+			<td>This is just a regular request.</td>
+			<td><code class="pre">method: "GET"
+url: "http://localhost:8080/regular-endpoint"
+mode: "same-origin"
+credentials: "same-origin"
+headers: "{}"
+</code></td>
+			<td><code class="pre">GET http://localhost:8080/regular-endpointHost: localhost:8080
+Connection: keep-alive
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
+Accept: */*
+Sec-Fetch-Site: same-origin
+Sec-Fetch-Mode: same-origin
+Sec-Fetch-Dest: empty
+Referer: http://localhost:8080/
+Accept-Encoding: gzip, deflate, br
+Accept-Language: en-US
+<code>
+</td>
+			<td><code class="pre"><span class="success">200 OK</span>
+X-Powered-By: Express
+Content-Type: text/plain; charset=utf-8
+Content-Length: 36
+ETag: W/"24-Ho5WLUU/MfVdkXIYNbfR9iQKPXQ"
+Date: Sat, 13 Jun 2020 08:57:18 GMT
+Connection: close
+
+This is a non CORS response message.</code>
+</td>
+			<td><code class="pre">type: "basic"
+headers: "{}"
+status: 200
+statusText: "OK"
+body: "This is a non CORS response message."
+</code></td>
+			<td><code></code></td>
+        </tr>
+        <tr>
+			<td>Origin: same<br/>CORS aware: <span class="success">yes</span><br/>Allowed origins: <span class="error">none</span></td>
+			<td>This shows even with CORS disabled the same origin can still use the endpoint.</td>
+			<td><code class="pre">method: "GET"
+url: "http://localhost:8080/cors-disabled-endpoint"
+mode: "same-origin"
+credentials: "same-origin"
+headers: "{}"
+</code></td>
+			<td><code class="pre">GET http://localhost:8080/cors-disabled-endpointHost: localhost:8080
+Connection: keep-alive
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
+Accept: */*
+Sec-Fetch-Site: same-origin
+Sec-Fetch-Mode: same-origin
+Sec-Fetch-Dest: empty
+Referer: http://localhost:8080/
+Accept-Encoding: gzip, deflate, br
+Accept-Language: en-US
+<code>
+</td>
+			<td><code class="pre"><span class="success">200 OK</span>
+X-Powered-By: Express
+Content-Type: text/plain; charset=utf-8
+Content-Length: 41
+ETag: W/"29-EnLSysNWToOESqBiRjtX1VFlaIg"
+Date: Sat, 13 Jun 2020 08:57:18 GMT
+Connection: close
+
+This is a CORS-disabled response message.</code>
+</td>
+			<td><code class="pre">type: "basic"
+headers: "{}"
+status: 200
+statusText: "OK"
+body: "This is a CORS-disabled response message."
+</code></td>
+			<td><code></code></td>
+        </tr>
+        <tr>
+			<td>Origin: cross<br/>CORS aware: <span class="error">no</span></td>
+			<td>The CORS protocol is designed to work without any changes to existing server implementations. This
+means a request to an endpoint with no CORS knowledge will be sent and processed, but the response won't be exposed
+to the client.</td>
+			<td><code class="pre">method: "GET"
+url: "http://localhost:8081/regular-endpoint"
+mode: "cors"
+credentials: "same-origin"
+headers: "{}"
+</code></td>
+			<td><code class="pre">GET http://localhost:8081/regular-endpointHost: localhost:8081
+Connection: keep-alive
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
+Accept: */*
+Origin: http://localhost:8080
+Sec-Fetch-Site: same-site
+Sec-Fetch-Mode: cors
+Sec-Fetch-Dest: empty
+Referer: http://localhost:8080/
+Accept-Encoding: gzip, deflate, br
+Accept-Language: en-US
+<code>
+</td>
+			<td><code class="pre"><span class="success">200 OK</span>
+X-Powered-By: Express
+Content-Type: text/plain; charset=utf-8
+Content-Length: 36
+ETag: W/"24-Ho5WLUU/MfVdkXIYNbfR9iQKPXQ"
+Date: Sat, 13 Jun 2020 08:57:18 GMT
+Connection: close
+
+This is a non CORS response message.</code>
+</td>
+			<td><code class="pre console-error">TypeError: Failed to fetch</code></td>
+			<td><code><p class="console-error">[ERROR] Access to fetch at 'http://localhost:8081/regular-endpoint' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.</p><p class="console-error">[ERROR] Failed to load resource: net::ERR_FAILED</p></code></td>
+        </tr>
+        <tr>
+			<td>Origin: cross<br/>CORS aware: <span class="error">no</span><br/><code>mode: 'no-cors'</code></td>
+			<td>When <code>mode: no-cors</code> is enabled cross-origin requests can be made if using a simple
+request. But note the response is opaque - nothing is readable by the script.</td>
+			<td><code class="pre">method: "GET"
+url: "http://localhost:8081/regular-endpoint"
+mode: "no-cors"
+credentials: "same-origin"
+headers: "{}"
+</code></td>
+			<td><code class="pre">GET http://localhost:8081/regular-endpointHost: localhost:8081
+Connection: keep-alive
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
+Accept: */*
+Sec-Fetch-Site: same-site
+Sec-Fetch-Mode: no-cors
+Sec-Fetch-Dest: empty
+Referer: http://localhost:8080/
+Accept-Encoding: gzip, deflate, br
+Accept-Language: en-US
+If-None-Match: W/"24-Ho5WLUU/MfVdkXIYNbfR9iQKPXQ"
+<code>
+</td>
+			<td><code class="pre"><span class="success">304 Not Modified</span>
+X-Powered-By: Express
+ETag: W/"24-Ho5WLUU/MfVdkXIYNbfR9iQKPXQ"
+Date: Sat, 13 Jun 2020 08:57:18 GMT
+Connection: close
+
+</code>
+</td>
+			<td><code class="pre">type: "opaque"
+headers: "{}"
+status: 0
+statusText: ""
+body: ""
+</code></td>
+			<td><code></code></td>
+        </tr>
+        <tr>
+			<td>Origin: cross<br/>CORS aware: <span class="success">yes</span><br/>Allowed origins: <span class="error">none</span></td>
+			<td>A cross-origin request denied due to server configuration.</td>
+			<td><code class="pre">method: "GET"
+url: "http://localhost:8081/cors-disabled-endpoint"
+mode: "cors"
+credentials: "same-origin"
+headers: "{}"
+</code></td>
+			<td><code class="pre">GET http://localhost:8081/cors-disabled-endpointHost: localhost:8081
+Connection: keep-alive
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
+Accept: */*
+Origin: http://localhost:8080
+Sec-Fetch-Site: same-site
+Sec-Fetch-Mode: cors
+Sec-Fetch-Dest: empty
+Referer: http://localhost:8080/
+Accept-Encoding: gzip, deflate, br
+Accept-Language: en-US
+<code>
+</td>
+			<td><code class="pre"><span class="success">200 OK</span>
+X-Powered-By: Express
+Content-Type: text/plain; charset=utf-8
+Content-Length: 41
+ETag: W/"29-EnLSysNWToOESqBiRjtX1VFlaIg"
+Date: Sat, 13 Jun 2020 08:57:18 GMT
+Connection: close
+
+This is a CORS-disabled response message.</code>
+</td>
+			<td><code class="pre console-error">TypeError: Failed to fetch</code></td>
+			<td><code><p class="console-error">[ERROR] Access to fetch at 'http://localhost:8081/cors-disabled-endpoint' from origin 'http://localhost:8080' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.</p><p class="console-error">[ERROR] Failed to load resource: net::ERR_FAILED</p></code></td>
+        </tr>
+        <tr>
+			<td>Origin: cross<br/>CORS aware: <span class="success">yes</span><br/>Allowed origins: <span class="success">all</span></td>
+			<td>A cross-origin request allowed due to server configuration.</td>
+			<td><code class="pre">method: "GET"
+url: "http://localhost:8081/cors-all-allowed-endpoint"
+mode: "cors"
+credentials: "same-origin"
+headers: "{}"
+</code></td>
+			<td><code class="pre">GET http://localhost:8081/cors-all-allowed-endpointHost: localhost:8081
+Connection: keep-alive
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
+Accept: */*
+Origin: http://localhost:8080
+Sec-Fetch-Site: same-site
+Sec-Fetch-Mode: cors
+Sec-Fetch-Dest: empty
+Referer: http://localhost:8080/
+Accept-Encoding: gzip, deflate, br
+Accept-Language: en-US
+<code>
+</td>
+			<td><code class="pre"><span class="success">200 OK</span>
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+Content-Type: text/plain; charset=utf-8
+Content-Length: 40
+ETag: W/"28-GgTuGLjJn/A2IscSlcZq+Uu3Zpw"
+Date: Sat, 13 Jun 2020 08:57:18 GMT
+Connection: close
+
+This is a CORS-enabled response message.</code>
+</td>
+			<td><code class="pre">type: "cors"
+headers: "{}"
+status: 200
+statusText: "OK"
+body: "This is a CORS-enabled response message."
+</code></td>
+			<td><code></code></td>
+        </tr>
+        <tr>
+			<td>Origin: cross<br/>CORS aware: <span class="success">yes</span><br/>
+Allowed origins: <span class="success">all</span><br/>
+<code>mode: 'same-origin'</code></td>
+			<td>If you try and make a cross-origin request with <code>mode: 'same-origin'</code> it will fail before
+the request is even sent, even for a endpoint that would support cross-origin requests for that origin.</td>
+			<td><code class="pre">method: "GET"
+url: "http://localhost:8081/cors-all-allowed-endpoint"
+mode: "same-origin"
+credentials: "same-origin"
+headers: "{}"
+</code></td>
+			<td>None</td>
+			<td>None</td>
+			<td><code class="pre console-error">TypeError: Failed to fetch</code></td>
+			<td><code><p class="console-error">[ERROR] Fetch API cannot load http://localhost:8081/cors-all-allowed-endpoint. Request mode is "same-origin" but the URL's origin is not same as the request origin http://localhost:8080.</p></code></td>
+        </tr>
+    </table>
+</body>
+</html>
