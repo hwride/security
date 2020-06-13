@@ -1,12 +1,12 @@
 {
   "name": "security-cors",
   "version": "1.0.0",
-  "description": "",
-  "main": "server-1.js",
+  "description": "Runs some CORS tests and captures script and network request details using Puppeteer and a transparent proxy.",
+  "main": "cors-tests-runner.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/run-cors-tests.js"
   },
-  "author": "",
+  "author": "Hugo Wride",
   "dependencies": {
     "chalk": "^4.0.0",
     "cors": "^2.8.5",
