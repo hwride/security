@@ -20,8 +20,8 @@ prefix.apply(loglevel, {
 })
 
 // Sets up loggers, initializing level from config if configured.
-exports.setupLogging = function() {
-    Object.entries(config.log).forEach(([loggerName, loggerLevel]) =>
+exports.setupLogging = function(config) {
+    Object.entries(config).forEach(([loggerName, loggerLevel]) =>
         loglevel.getLogger(loggerName).setLevel(loggerLevel))
 }
 

@@ -9,60 +9,40 @@ const testDefinitions = require('./test-definitions')
 
 const logger = createLogger('run-cors-tests')
 
-// The browser will make requests to the proxy ports which will record all the request info.
-// The actual servers are under the main ports.
-const server1 = `http://localhost:${config.ports.server1.proxy}`
-const server2 = `http://localhost:${config.ports.server2.proxy}`
+runCorsTests(config)
 
-const resultsPath = path.resolve(__dirname + '/../generated/results.html')
+async function runCorsTests(config) {
+    // Setup.
+    setupLogging(config.log)
+    const servers = setupServers(config.ports)
+    const { browser, page } = await setupPage(config)
 
-runCorsTests()
-
-async function runCorsTests() {
-    setupLogging()
-
-    // Setup servers.
-    const servers = setupServers({
-        server1MainPort: config.ports.server1.main,
-        server2MainPort: config.ports.server2.main,
-        server1ProxyPort: config.ports.server1.proxy,
-        server2ProxyPort: config.ports.server2.proxy
-    })
-
-    // Setup page.
-    const browser = await puppeteer.launch(config.puppeteer)
-    const page = await browser.newPage()
-    setupPageLogging(page)
-
-    await page.goto(server1)
-    await setupPageUtilFunctions(page)
-
-    // Make test requests.
-    const testDefsReplaced = testDefinitions.map(testDef => ({
-        ...testDef,
-        url: testDef.url.replace('${server1}', server1).replace('${server2}', server2)
-    }))
-    const allRequestData = await makeRequests(page, servers.proxyServers, testDefsReplaced)
+    // Make requests.
+    const allRequestData = await makeTestRequests(page, config.ports, servers.proxyServers, testDefinitions)
 
     // Save results to file.
-    const resultsDir = path.dirname(resultsPath)
-    if(fs.existsSync(resultsDir)) fs.rmdirSync(resultsDir, { recursive: true })
-    fs.mkdirSync(resultsDir)
-    saveResultsAsHTML(allRequestData, resultsPath)
+    const resultsPath = path.resolve(__dirname + '/../generated/results.html')
+    saveResultsToFile(resultsPath, allRequestData)
 
-    // Tear down browser.
-    await browser.close();
-    shutdownServers(servers)
+    // Teardown.
+    await cleanup(browser, servers)
 }
 
-function setupPageLogging(page) {
+async function setupPage(config) {
+    const browser = await puppeteer.launch(config.puppeteer)
+    const page = await browser.newPage()
     page.on('console', msg => logger.info('[Page] ' + msg.text()))
+
+    await page.goto(getProxyServerURL(config.ports.server1.proxy))
+    await setupBrowserRequestCapturingFunction(page)
+
+    return { browser, page }
 }
 
 /**
  * Sets up a global function on the page which will send a request and capture its request data.
  */
-async function setupPageUtilFunctions(page) {
+async function setupBrowserRequestCapturingFunction(page) {
     await page.evaluate(async () => {
         window.sendRequestAndCaptureDataScript = async function(url, requestOptions, readBody = true) {
             const request = new Request(url, requestOptions)
@@ -166,4 +146,30 @@ async function sendRequestAndCaptureScriptData(page, url, requestOptions, expect
         requestSentByScript: responseScript.request,
         responseReceivedByScript: responseScript.response
     }
+}
+
+async function makeTestRequests(page, portsConfig, proxyServers, testDefinitions) {
+    const testDefsReplaced = testDefinitions.map(testDef => ({
+        ...testDef,
+        url: testDef.url
+            .replace('${server1}', getProxyServerURL(portsConfig.server1.proxy))
+            .replace('${server2}', getProxyServerURL(portsConfig.server2.proxy))
+    }))
+    return await makeRequests(page, proxyServers, testDefsReplaced)
+}
+
+function getProxyServerURL(port) {
+    return `http://localhost:${port}`
+}
+
+function saveResultsToFile(resultsPath, allRequestData) {
+    const resultsDir = path.dirname(resultsPath)
+    if(fs.existsSync(resultsDir)) fs.rmdirSync(resultsDir, { recursive: true })
+    fs.mkdirSync(resultsDir)
+    saveResultsAsHTML(allRequestData, resultsPath)
+}
+
+async function cleanup(browser, servers) {
+    await browser.close();
+    shutdownServers(servers)
 }
