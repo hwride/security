@@ -9,12 +9,8 @@ const logger = createLogger('run-cors-tests')
 
 // The browser will make requests to the proxy ports which will record all the request info.
 // The actual servers are under the main ports.
-const server1ProxyPort = 8080
-const server1MainPort = 8090
-const server2ProxyPort = 8081
-const server2MainPort = 8091
-const server1 = `http://localhost:${server1ProxyPort}`
-const server2 = `http://localhost:${server2ProxyPort}`
+const server1 = `http://localhost:${config.ports.server1.proxy}`
+const server2 = `http://localhost:${config.ports.server2.proxy}`
 
 const resultsPath = path.resolve(__dirname + '/../generated/results.html')
 
@@ -23,10 +19,10 @@ runCorsTests()
 async function runCorsTests() {
     setupLogging()
     const servers = setupServers({
-        server1MainPort,
-        server2MainPort,
-        server1ProxyPort,
-        server2ProxyPort
+        server1MainPort: config.ports.server1.main,
+        server2MainPort: config.ports.server2.main,
+        server1ProxyPort: config.ports.server1.proxy,
+        server2ProxyPort: config.ports.server2.proxy
     })
 
     // Setup browser.
