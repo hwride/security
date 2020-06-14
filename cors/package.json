@@ -4,7 +4,8 @@
   "description": "Runs some CORS tests and captures script and network request details using Puppeteer and a transparent proxy.",
   "main": "src/test-runner/cors-tests-runner.js",
   "scripts": {
-    "start": "node src/run-cors-tests.js"
+    "start": "node src/run-cors-tests.js",
+    "test": "node src/run-cors-tests.js"
   },
   "author": "Hugo Wride",
   "dependencies": {
