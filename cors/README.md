@@ -1,3 +1,5 @@
+![](https://github.com/hwride/security/workflows/CORS/badge.svg)
+
 # How to run tests
 `node run-cors-tests.js`
 
