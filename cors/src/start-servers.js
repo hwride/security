@@ -1,1 +1,1 @@
-require('./servers-main').setupMainServers()
+require('./servers/servers-main').setupMainServers()

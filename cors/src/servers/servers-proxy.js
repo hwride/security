@@ -1,6 +1,6 @@
 const http = require('http')
 const httpProxy = require('http-proxy')
-const logger = require('./logging').createLogger('severs-proxy')
+const logger = require('../framework/logging').createLogger('severs-proxy')
 
 exports.setupProxyServers = function(server1MainPort, server1ProxyPort,
                                      server2MainPort, server2ProxyPort) {

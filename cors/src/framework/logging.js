@@ -1,4 +1,3 @@
-const config = require('./config')
 const loglevel = require('loglevel')
 const chalk = require('chalk')
 const prefix = require('loglevel-plugin-prefix')

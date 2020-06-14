@@ -1,6 +1,6 @@
 const express = require('express')
 const cors = require('cors')
-const logger = require('./logging').createLogger('servers-main')
+const logger = require('../framework/logging').createLogger('servers-main')
 
 exports.setupMainServers = function(server1Port, server2Port) {
 	// Server 1 is be the origin server, it will server the HTML of the main page.

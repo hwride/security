@@ -1,4 +1,4 @@
 const config = require('./config')
-const runCORSTests = require('./cors-tests-runner')
+const runCORSTests = require('./test-runner/cors-tests-runner')
 
 runCORSTests(config)
