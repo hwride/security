@@ -4,7 +4,6 @@ const { setupServers, shutdownServers } = require('../servers/servers')
 const { setupLogging, createLogger, logColours } = require('../framework/logging')
 const saveResultsAsHTML = require('../result-writing/results-html-creator')
 
-const config = require('../config')
 const testDefinitions = require('../test-definitions')
 
 const logger = createLogger('run-cors-tests')
@@ -19,7 +18,7 @@ module.exports = async function runCORSTests(config) {
     const allRequestData = await makeTestRequests(page, config.ports, servers.proxyServers, testDefinitions)
 
     // Save results to file.
-    const resultsPath = path.resolve(__dirname + '../../../generated/results.html')
+    const resultsPath = path.resolve(config.resultsPath)
     saveResultsToFile(resultsPath, allRequestData)
 
     // Teardown.
