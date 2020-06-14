@@ -1,5 +1,5 @@
 # How to run tests
-`node cors-tests-runner.js`
+`node run-cors-tests.js`
 
 This will boot up some servers then make test requests using Puppeteer. Request data sent to and from the server is 
 captured using a transparent proxy. Result data is logged `generated/results.html`.
