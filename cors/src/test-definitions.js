@@ -38,6 +38,53 @@ request. But note the response is opaque - nothing is readable by the script.`
         url: '${server2}/cors-all-allowed-endpoint'
     },
     {
+        name: `Origin: cross<br/>
+CORS aware: <span class="success">yes</span><br/>
+Allowed origins: <span class="success">all</span><br/>
+<code>method: 'POST'</code>`,
+        notes: ``,
+        requestOptions: { method: 'POST' },
+        url: '${server2}/cors-all-allowed-endpoint'
+    },
+    {
+        name: `Origin: cross<br/>
+CORS aware: <span class="success">yes</span><br/>
+Allowed origins: <span class="success">all</span><br/>
+<code>method: 'PUT'</code>`,
+        notes: `Non simple requests require a pre-flight (<code>OPTIONS</code>) request - <code>method</code>.`,
+        requestOptions: { method: 'PUT' },
+        url: '${server2}/cors-all-allowed-endpoint'
+    },
+    {
+        name: `Origin: cross<br/>
+CORS aware: <span class="success">yes</span><br/>
+Allowed origins: <span class="success">all</span><br/>
+Custom headers`,
+        notes: `Non simple requests require a pre-flight (<code>OPTIONS</code>) request - custom headers.`,
+        requestOptions: {
+            headers: {
+                'X-Custom-Header': 'Custom header value'
+            }
+        },
+        url: '${server2}/cors-all-allowed-endpoint'
+    },
+    {
+        name: `Origin: cross<br/>
+CORS aware: <span class="success">yes</span><br/>
+Allowed origins: <span class="success">all</span><br/>
+<code>Content-Type: application/json</code>`,
+        notes: `Non simple requests require a pre-flight (<code>OPTIONS</code>) request - non-safe 
+<code>Content-Type</code>.`,
+        requestOptions: {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: '{ "json-body": true }'
+        },
+        url: '${server2}/cors-all-allowed-endpoint'
+    },
+    {
         name: `Origin: cross<br/>CORS aware: <span class="success">yes</span><br/>
 Allowed origins: <span class="success">all</span><br/>
 <code>mode: 'same-origin'</code>`,

@@ -79,7 +79,7 @@ X-Powered-By: Express
 Content-Type: text/plain; charset=utf-8
 Content-Length: 36
 ETag: W/"24-Ho5WLUU/MfVdkXIYNbfR9iQKPXQ"
-Date: Sun, 14 Jun 2020 09:48:45 GMT
+Date: Tue, 16 Jun 2020 21:29:04 GMT
 Connection: close
 
 This is a non CORS response message.</code>
@@ -118,7 +118,7 @@ X-Powered-By: Express
 Content-Type: text/plain; charset=utf-8
 Content-Length: 41
 ETag: W/"29-EnLSysNWToOESqBiRjtX1VFlaIg"
-Date: Sun, 14 Jun 2020 09:48:45 GMT
+Date: Tue, 16 Jun 2020 21:29:04 GMT
 Connection: close
 
 This is a CORS-disabled response message.</code>
@@ -160,7 +160,7 @@ X-Powered-By: Express
 Content-Type: text/plain; charset=utf-8
 Content-Length: 36
 ETag: W/"24-Ho5WLUU/MfVdkXIYNbfR9iQKPXQ"
-Date: Sun, 14 Jun 2020 09:48:45 GMT
+Date: Tue, 16 Jun 2020 21:29:04 GMT
 Connection: close
 
 This is a non CORS response message.</code>
@@ -194,7 +194,7 @@ If-None-Match: W/"24-Ho5WLUU/MfVdkXIYNbfR9iQKPXQ"
 			<td><code class="pre"><span class="success">304 Not Modified</span>
 X-Powered-By: Express
 ETag: W/"24-Ho5WLUU/MfVdkXIYNbfR9iQKPXQ"
-Date: Sun, 14 Jun 2020 09:48:45 GMT
+Date: Tue, 16 Jun 2020 21:29:04 GMT
 Connection: close
 
 </code>
@@ -234,7 +234,7 @@ X-Powered-By: Express
 Content-Type: text/plain; charset=utf-8
 Content-Length: 41
 ETag: W/"29-EnLSysNWToOESqBiRjtX1VFlaIg"
-Date: Sun, 14 Jun 2020 09:48:45 GMT
+Date: Tue, 16 Jun 2020 21:29:04 GMT
 Connection: close
 
 This is a CORS-disabled response message.</code>
@@ -270,7 +270,262 @@ Access-Control-Allow-Origin: *
 Content-Type: text/plain; charset=utf-8
 Content-Length: 40
 ETag: W/"28-GgTuGLjJn/A2IscSlcZq+Uu3Zpw"
-Date: Sun, 14 Jun 2020 09:48:45 GMT
+Date: Tue, 16 Jun 2020 21:29:04 GMT
+Connection: close
+
+This is a CORS-enabled response message.</code>
+</td>
+			<td><code class="pre">type: "cors"
+headers: "{}"
+status: 200
+statusText: "OK"
+body: "This is a CORS-enabled response message."
+</code></td>
+			<td><code></code></td>
+        </tr>
+        <tr>
+			<td>Origin: cross<br/>
+CORS aware: <span class="success">yes</span><br/>
+Allowed origins: <span class="success">all</span><br/>
+<code>method: 'POST'</code></td>
+			<td></td>
+			<td><code class="pre">method: "POST"
+url: "http://localhost:8081/cors-all-allowed-endpoint"
+mode: "cors"
+credentials: "same-origin"
+headers: "{}"
+</code></td>
+			<td><code class="pre">POST http://localhost:8081/cors-all-allowed-endpointHost: localhost:8081
+Connection: keep-alive
+Content-Length: 0
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
+Accept: */*
+Origin: http://localhost:8080
+Sec-Fetch-Site: same-site
+Sec-Fetch-Mode: cors
+Sec-Fetch-Dest: empty
+Referer: http://localhost:8080/
+Accept-Encoding: gzip, deflate, br
+Accept-Language: en-US
+<code>
+</td>
+			<td><code class="pre"><span class="success">200 OK</span>
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+Content-Type: text/plain; charset=utf-8
+Content-Length: 40
+ETag: W/"28-GgTuGLjJn/A2IscSlcZq+Uu3Zpw"
+Date: Tue, 16 Jun 2020 21:29:04 GMT
+Connection: close
+
+This is a CORS-enabled response message.</code>
+</td>
+			<td><code class="pre">type: "cors"
+headers: "{}"
+status: 200
+statusText: "OK"
+body: "This is a CORS-enabled response message."
+</code></td>
+			<td><code></code></td>
+        </tr>
+        <tr>
+			<td>Origin: cross<br/>
+CORS aware: <span class="success">yes</span><br/>
+Allowed origins: <span class="success">all</span><br/>
+<code>method: 'PUT'</code></td>
+			<td>Non simple requests require a pre-flight (<code>OPTIONS</code>) request - <code>method</code>.</td>
+			<td><code class="pre">method: "PUT"
+url: "http://localhost:8081/cors-all-allowed-endpoint"
+mode: "cors"
+credentials: "same-origin"
+headers: "{}"
+</code></td>
+			<td><code class="pre">OPTIONS http://localhost:8081/cors-all-allowed-endpointHost: localhost:8081
+Connection: keep-alive
+Accept: */*
+Access-Control-Request-Method: PUT
+Origin: http://localhost:8080
+Sec-Fetch-Mode: cors
+Sec-Fetch-Site: same-site
+Sec-Fetch-Dest: empty
+Referer: http://localhost:8080/
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
+Accept-Encoding: gzip, deflate, br
+Accept-Language: en-US
+<code>
+<code class="pre">PUT http://localhost:8081/cors-all-allowed-endpointHost: localhost:8081
+Connection: keep-alive
+Content-Length: 0
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
+Accept: */*
+Origin: http://localhost:8080
+Sec-Fetch-Site: same-site
+Sec-Fetch-Mode: cors
+Sec-Fetch-Dest: empty
+Referer: http://localhost:8080/
+Accept-Encoding: gzip, deflate, br
+Accept-Language: en-US
+<code>
+</td>
+			<td><code class="pre"><span class="success">204 No Content</span>
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET,HEAD,PUT,PATCH,POST,DELETE
+Vary: Access-Control-Request-Headers
+Content-Length: 0
+Date: Tue, 16 Jun 2020 21:29:04 GMT
+Connection: close
+
+</code>
+<code class="pre"><span class="success">200 OK</span>
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+Content-Type: text/plain; charset=utf-8
+Content-Length: 40
+ETag: W/"28-GgTuGLjJn/A2IscSlcZq+Uu3Zpw"
+Date: Tue, 16 Jun 2020 21:29:04 GMT
+Connection: close
+
+This is a CORS-enabled response message.</code>
+</td>
+			<td><code class="pre">type: "cors"
+headers: "{}"
+status: 200
+statusText: "OK"
+body: "This is a CORS-enabled response message."
+</code></td>
+			<td><code></code></td>
+        </tr>
+        <tr>
+			<td>Origin: cross<br/>
+CORS aware: <span class="success">yes</span><br/>
+Allowed origins: <span class="success">all</span><br/>
+Custom headers</td>
+			<td>Non simple requests require a pre-flight (<code>OPTIONS</code>) request - custom headers.</td>
+			<td><code class="pre">method: "GET"
+url: "http://localhost:8081/cors-all-allowed-endpoint"
+mode: "cors"
+credentials: "same-origin"
+headers: "{}"
+</code></td>
+			<td><code class="pre">OPTIONS http://localhost:8081/cors-all-allowed-endpointHost: localhost:8081
+Connection: keep-alive
+Accept: */*
+Access-Control-Request-Method: GET
+Access-Control-Request-Headers: x-custom-header
+Origin: http://localhost:8080
+Sec-Fetch-Mode: cors
+Sec-Fetch-Site: same-site
+Sec-Fetch-Dest: empty
+Referer: http://localhost:8080/
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
+Accept-Encoding: gzip, deflate, br
+Accept-Language: en-US
+<code>
+<code class="pre">GET http://localhost:8081/cors-all-allowed-endpointHost: localhost:8081
+Connection: keep-alive
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
+X-Custom-Header: Custom header value
+Accept: */*
+Origin: http://localhost:8080
+Sec-Fetch-Site: same-site
+Sec-Fetch-Mode: cors
+Sec-Fetch-Dest: empty
+Referer: http://localhost:8080/
+Accept-Encoding: gzip, deflate, br
+Accept-Language: en-US
+<code>
+</td>
+			<td><code class="pre"><span class="success">204 No Content</span>
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET,HEAD,PUT,PATCH,POST,DELETE
+Vary: Access-Control-Request-Headers
+Access-Control-Allow-Headers: x-custom-header
+Content-Length: 0
+Date: Tue, 16 Jun 2020 21:29:04 GMT
+Connection: close
+
+</code>
+<code class="pre"><span class="success">200 OK</span>
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+Content-Type: text/plain; charset=utf-8
+Content-Length: 40
+ETag: W/"28-GgTuGLjJn/A2IscSlcZq+Uu3Zpw"
+Date: Tue, 16 Jun 2020 21:29:04 GMT
+Connection: close
+
+This is a CORS-enabled response message.</code>
+</td>
+			<td><code class="pre">type: "cors"
+headers: "{}"
+status: 200
+statusText: "OK"
+body: "This is a CORS-enabled response message."
+</code></td>
+			<td><code></code></td>
+        </tr>
+        <tr>
+			<td>Origin: cross<br/>
+CORS aware: <span class="success">yes</span><br/>
+Allowed origins: <span class="success">all</span><br/>
+<code>Content-Type: application/json</code></td>
+			<td>Non simple requests require a pre-flight (<code>OPTIONS</code>) request - non-safe 
+<code>Content-Type</code>.</td>
+			<td><code class="pre">method: "POST"
+url: "http://localhost:8081/cors-all-allowed-endpoint"
+mode: "cors"
+credentials: "same-origin"
+headers: "{}"
+</code></td>
+			<td><code class="pre">OPTIONS http://localhost:8081/cors-all-allowed-endpointHost: localhost:8081
+Connection: keep-alive
+Accept: */*
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: content-type
+Origin: http://localhost:8080
+Sec-Fetch-Mode: cors
+Sec-Fetch-Site: same-site
+Sec-Fetch-Dest: empty
+Referer: http://localhost:8080/
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
+Accept-Encoding: gzip, deflate, br
+Accept-Language: en-US
+<code>
+<code class="pre">POST http://localhost:8081/cors-all-allowed-endpointHost: localhost:8081
+Connection: keep-alive
+Content-Length: 21
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
+Content-Type: application/json
+Accept: */*
+Origin: http://localhost:8080
+Sec-Fetch-Site: same-site
+Sec-Fetch-Mode: cors
+Sec-Fetch-Dest: empty
+Referer: http://localhost:8080/
+Accept-Encoding: gzip, deflate, br
+Accept-Language: en-US
+{ "json-body": true }<code>
+</td>
+			<td><code class="pre"><span class="success">204 No Content</span>
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET,HEAD,PUT,PATCH,POST,DELETE
+Vary: Access-Control-Request-Headers
+Access-Control-Allow-Headers: content-type
+Content-Length: 0
+Date: Tue, 16 Jun 2020 21:29:04 GMT
+Connection: close
+
+</code>
+<code class="pre"><span class="success">200 OK</span>
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+Content-Type: text/plain; charset=utf-8
+Content-Length: 40
+ETag: W/"28-GgTuGLjJn/A2IscSlcZq+Uu3Zpw"
+Date: Tue, 16 Jun 2020 21:29:04 GMT
 Connection: close
 
 This is a CORS-enabled response message.</code>
