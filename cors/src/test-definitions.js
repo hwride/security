@@ -42,7 +42,7 @@ request. But note the response is opaque - nothing is readable by the script.`
 CORS aware: <span class="success">yes</span><br/>
 Allowed origins: <span class="success">all</span><br/>
 <code>method: 'POST'</code>`,
-        notes: ``,
+        notes: `A <code>POST</code> counts as a simple request.`,
         requestOptions: { method: 'POST' },
         url: '${server2}/cors-all-allowed-endpoint'
     },
