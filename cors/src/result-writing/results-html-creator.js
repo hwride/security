@@ -94,16 +94,16 @@ function getScriptRequestHTML(requestSentByScript) {
 function getServerRequestHTML(requestData) {
     // Combining all proxy requests here for the sake of completeness, but would expect only requests from a
     // single proxy server.
-    const proxyResponses = requestData.proxyServer1.requests.concat(requestData.proxyServer2.requests)
-    if(proxyResponses.length === 0) return 'None'
+    const proxyRequests = requestData.proxyServer1.requests.concat(requestData.proxyServer2.requests)
+    if(proxyRequests.length === 0) return 'None'
     else {
         let html = ''
-        proxyResponses.forEach(proxyResponse => html += getServerResponseHTMLSingle(proxyResponse) + '\n')
+        proxyRequests.forEach(proxyRequest => html += getServerRequestHTMLSingle(proxyRequest) + '\n')
         return html
     }
 
-    function getServerResponseHTMLSingle(proxyRequest) {
-        let html = `<code class="pre">${proxyRequest.req.method} ${proxyRequest.proxyURL}${proxyRequest.req.url}`
+    function getServerRequestHTMLSingle(proxyRequest) {
+        let html = `<code class="pre">${proxyRequest.req.method} ${proxyRequest.proxyURL}${proxyRequest.req.url}\n`
         html += convertRawHeadersToHTML(proxyRequest.req.rawHeaders)
         html += `${proxyRequest.body}`
         html += `<code>`
@@ -136,7 +136,7 @@ function getServerResponseHTML(requestData) {
         responseStr += convertRawHeadersToHTML(response.proxyRes.rawHeaders)
 
         // Body.
-        responseStr += '\n' + (response.body != null ? response.body : `<span class="error">[No body]</span>`)
+        responseStr += response.body != null ? response.body : `<span class="error">[No body]</span>`
 
         return `<code class="pre">${responseStr}</code>`
     }

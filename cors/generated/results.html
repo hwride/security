@@ -62,7 +62,8 @@ mode: "same-origin"
 credentials: "same-origin"
 headers: "{}"
 </code></td>
-			<td><code class="pre">GET http://localhost:8080/regular-endpointHost: localhost:8080
+			<td><code class="pre">GET http://localhost:8080/regular-endpoint
+Host: localhost:8080
 Connection: keep-alive
 User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
 Accept: */*
@@ -79,9 +80,8 @@ X-Powered-By: Express
 Content-Type: text/plain; charset=utf-8
 Content-Length: 36
 ETag: W/"24-Ho5WLUU/MfVdkXIYNbfR9iQKPXQ"
-Date: Tue, 16 Jun 2020 21:29:04 GMT
+Date: Tue, 16 Jun 2020 21:56:18 GMT
 Connection: close
-
 This is a non CORS response message.</code>
 </td>
 			<td><code class="pre">type: "basic"
@@ -101,7 +101,8 @@ mode: "same-origin"
 credentials: "same-origin"
 headers: "{}"
 </code></td>
-			<td><code class="pre">GET http://localhost:8080/cors-disabled-endpointHost: localhost:8080
+			<td><code class="pre">GET http://localhost:8080/cors-disabled-endpoint
+Host: localhost:8080
 Connection: keep-alive
 User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
 Accept: */*
@@ -118,9 +119,8 @@ X-Powered-By: Express
 Content-Type: text/plain; charset=utf-8
 Content-Length: 41
 ETag: W/"29-EnLSysNWToOESqBiRjtX1VFlaIg"
-Date: Tue, 16 Jun 2020 21:29:04 GMT
+Date: Tue, 16 Jun 2020 21:56:18 GMT
 Connection: close
-
 This is a CORS-disabled response message.</code>
 </td>
 			<td><code class="pre">type: "basic"
@@ -142,7 +142,8 @@ mode: "cors"
 credentials: "same-origin"
 headers: "{}"
 </code></td>
-			<td><code class="pre">GET http://localhost:8081/regular-endpointHost: localhost:8081
+			<td><code class="pre">GET http://localhost:8081/regular-endpoint
+Host: localhost:8081
 Connection: keep-alive
 User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
 Accept: */*
@@ -160,9 +161,8 @@ X-Powered-By: Express
 Content-Type: text/plain; charset=utf-8
 Content-Length: 36
 ETag: W/"24-Ho5WLUU/MfVdkXIYNbfR9iQKPXQ"
-Date: Tue, 16 Jun 2020 21:29:04 GMT
+Date: Tue, 16 Jun 2020 21:56:18 GMT
 Connection: close
-
 This is a non CORS response message.</code>
 </td>
 			<td><code class="pre console-error">TypeError: Failed to fetch</code></td>
@@ -178,7 +178,8 @@ mode: "no-cors"
 credentials: "same-origin"
 headers: "{}"
 </code></td>
-			<td><code class="pre">GET http://localhost:8081/regular-endpointHost: localhost:8081
+			<td><code class="pre">GET http://localhost:8081/regular-endpoint
+Host: localhost:8081
 Connection: keep-alive
 User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
 Accept: */*
@@ -194,9 +195,8 @@ If-None-Match: W/"24-Ho5WLUU/MfVdkXIYNbfR9iQKPXQ"
 			<td><code class="pre"><span class="success">304 Not Modified</span>
 X-Powered-By: Express
 ETag: W/"24-Ho5WLUU/MfVdkXIYNbfR9iQKPXQ"
-Date: Tue, 16 Jun 2020 21:29:04 GMT
+Date: Tue, 16 Jun 2020 21:56:18 GMT
 Connection: close
-
 </code>
 </td>
 			<td><code class="pre">type: "opaque"
@@ -216,7 +216,8 @@ mode: "cors"
 credentials: "same-origin"
 headers: "{}"
 </code></td>
-			<td><code class="pre">GET http://localhost:8081/cors-disabled-endpointHost: localhost:8081
+			<td><code class="pre">GET http://localhost:8081/cors-disabled-endpoint
+Host: localhost:8081
 Connection: keep-alive
 User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
 Accept: */*
@@ -234,9 +235,8 @@ X-Powered-By: Express
 Content-Type: text/plain; charset=utf-8
 Content-Length: 41
 ETag: W/"29-EnLSysNWToOESqBiRjtX1VFlaIg"
-Date: Tue, 16 Jun 2020 21:29:04 GMT
+Date: Tue, 16 Jun 2020 21:56:18 GMT
 Connection: close
-
 This is a CORS-disabled response message.</code>
 </td>
 			<td><code class="pre console-error">TypeError: Failed to fetch</code></td>
@@ -251,7 +251,8 @@ mode: "cors"
 credentials: "same-origin"
 headers: "{}"
 </code></td>
-			<td><code class="pre">GET http://localhost:8081/cors-all-allowed-endpointHost: localhost:8081
+			<td><code class="pre">GET http://localhost:8081/cors-all-allowed-endpoint
+Host: localhost:8081
 Connection: keep-alive
 User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
 Accept: */*
@@ -270,9 +271,8 @@ Access-Control-Allow-Origin: *
 Content-Type: text/plain; charset=utf-8
 Content-Length: 40
 ETag: W/"28-GgTuGLjJn/A2IscSlcZq+Uu3Zpw"
-Date: Tue, 16 Jun 2020 21:29:04 GMT
+Date: Tue, 16 Jun 2020 21:56:18 GMT
 Connection: close
-
 This is a CORS-enabled response message.</code>
 </td>
 			<td><code class="pre">type: "cors"
@@ -295,7 +295,8 @@ mode: "cors"
 credentials: "same-origin"
 headers: "{}"
 </code></td>
-			<td><code class="pre">POST http://localhost:8081/cors-all-allowed-endpointHost: localhost:8081
+			<td><code class="pre">POST http://localhost:8081/cors-all-allowed-endpoint
+Host: localhost:8081
 Connection: keep-alive
 Content-Length: 0
 User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
@@ -315,9 +316,8 @@ Access-Control-Allow-Origin: *
 Content-Type: text/plain; charset=utf-8
 Content-Length: 40
 ETag: W/"28-GgTuGLjJn/A2IscSlcZq+Uu3Zpw"
-Date: Tue, 16 Jun 2020 21:29:04 GMT
+Date: Tue, 16 Jun 2020 21:56:18 GMT
 Connection: close
-
 This is a CORS-enabled response message.</code>
 </td>
 			<td><code class="pre">type: "cors"
@@ -340,7 +340,8 @@ mode: "cors"
 credentials: "same-origin"
 headers: "{}"
 </code></td>
-			<td><code class="pre">OPTIONS http://localhost:8081/cors-all-allowed-endpointHost: localhost:8081
+			<td><code class="pre">OPTIONS http://localhost:8081/cors-all-allowed-endpoint
+Host: localhost:8081
 Connection: keep-alive
 Accept: */*
 Access-Control-Request-Method: PUT
@@ -353,7 +354,8 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (
 Accept-Encoding: gzip, deflate, br
 Accept-Language: en-US
 <code>
-<code class="pre">PUT http://localhost:8081/cors-all-allowed-endpointHost: localhost:8081
+<code class="pre">PUT http://localhost:8081/cors-all-allowed-endpoint
+Host: localhost:8081
 Connection: keep-alive
 Content-Length: 0
 User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
@@ -373,9 +375,8 @@ Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET,HEAD,PUT,PATCH,POST,DELETE
 Vary: Access-Control-Request-Headers
 Content-Length: 0
-Date: Tue, 16 Jun 2020 21:29:04 GMT
+Date: Tue, 16 Jun 2020 21:56:18 GMT
 Connection: close
-
 </code>
 <code class="pre"><span class="success">200 OK</span>
 X-Powered-By: Express
@@ -383,9 +384,8 @@ Access-Control-Allow-Origin: *
 Content-Type: text/plain; charset=utf-8
 Content-Length: 40
 ETag: W/"28-GgTuGLjJn/A2IscSlcZq+Uu3Zpw"
-Date: Tue, 16 Jun 2020 21:29:04 GMT
+Date: Tue, 16 Jun 2020 21:56:18 GMT
 Connection: close
-
 This is a CORS-enabled response message.</code>
 </td>
 			<td><code class="pre">type: "cors"
@@ -408,7 +408,8 @@ mode: "cors"
 credentials: "same-origin"
 headers: "{}"
 </code></td>
-			<td><code class="pre">OPTIONS http://localhost:8081/cors-all-allowed-endpointHost: localhost:8081
+			<td><code class="pre">OPTIONS http://localhost:8081/cors-all-allowed-endpoint
+Host: localhost:8081
 Connection: keep-alive
 Accept: */*
 Access-Control-Request-Method: GET
@@ -422,7 +423,8 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (
 Accept-Encoding: gzip, deflate, br
 Accept-Language: en-US
 <code>
-<code class="pre">GET http://localhost:8081/cors-all-allowed-endpointHost: localhost:8081
+<code class="pre">GET http://localhost:8081/cors-all-allowed-endpoint
+Host: localhost:8081
 Connection: keep-alive
 User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
 X-Custom-Header: Custom header value
@@ -443,9 +445,8 @@ Access-Control-Allow-Methods: GET,HEAD,PUT,PATCH,POST,DELETE
 Vary: Access-Control-Request-Headers
 Access-Control-Allow-Headers: x-custom-header
 Content-Length: 0
-Date: Tue, 16 Jun 2020 21:29:04 GMT
+Date: Tue, 16 Jun 2020 21:56:18 GMT
 Connection: close
-
 </code>
 <code class="pre"><span class="success">200 OK</span>
 X-Powered-By: Express
@@ -453,9 +454,8 @@ Access-Control-Allow-Origin: *
 Content-Type: text/plain; charset=utf-8
 Content-Length: 40
 ETag: W/"28-GgTuGLjJn/A2IscSlcZq+Uu3Zpw"
-Date: Tue, 16 Jun 2020 21:29:04 GMT
+Date: Tue, 16 Jun 2020 21:56:18 GMT
 Connection: close
-
 This is a CORS-enabled response message.</code>
 </td>
 			<td><code class="pre">type: "cors"
@@ -479,7 +479,8 @@ mode: "cors"
 credentials: "same-origin"
 headers: "{}"
 </code></td>
-			<td><code class="pre">OPTIONS http://localhost:8081/cors-all-allowed-endpointHost: localhost:8081
+			<td><code class="pre">OPTIONS http://localhost:8081/cors-all-allowed-endpoint
+Host: localhost:8081
 Connection: keep-alive
 Accept: */*
 Access-Control-Request-Method: POST
@@ -493,7 +494,8 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (
 Accept-Encoding: gzip, deflate, br
 Accept-Language: en-US
 <code>
-<code class="pre">POST http://localhost:8081/cors-all-allowed-endpointHost: localhost:8081
+<code class="pre">POST http://localhost:8081/cors-all-allowed-endpoint
+Host: localhost:8081
 Connection: keep-alive
 Content-Length: 21
 User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/83.0.4103.0 Safari/537.36
@@ -515,9 +517,8 @@ Access-Control-Allow-Methods: GET,HEAD,PUT,PATCH,POST,DELETE
 Vary: Access-Control-Request-Headers
 Access-Control-Allow-Headers: content-type
 Content-Length: 0
-Date: Tue, 16 Jun 2020 21:29:04 GMT
+Date: Tue, 16 Jun 2020 21:56:18 GMT
 Connection: close
-
 </code>
 <code class="pre"><span class="success">200 OK</span>
 X-Powered-By: Express
@@ -525,9 +526,8 @@ Access-Control-Allow-Origin: *
 Content-Type: text/plain; charset=utf-8
 Content-Length: 40
 ETag: W/"28-GgTuGLjJn/A2IscSlcZq+Uu3Zpw"
-Date: Tue, 16 Jun 2020 21:29:04 GMT
+Date: Tue, 16 Jun 2020 21:56:18 GMT
 Connection: close
-
 This is a CORS-enabled response message.</code>
 </td>
 			<td><code class="pre">type: "cors"
