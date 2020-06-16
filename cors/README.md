@@ -1,7 +1,7 @@
 ![](https://github.com/hwride/security/workflows/CORS/badge.svg)
 
 # View test results
-See [here](https://hwride.github.io/security/cors/generated/results.html)
+See [here](https://hwride.github.io/security/cors/generated/results.html).
 
 # How to run tests
 `npm test`
