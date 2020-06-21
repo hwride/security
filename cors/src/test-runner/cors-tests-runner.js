@@ -160,6 +160,7 @@ function getProxyServerURL(port) {
 }
 
 function saveResultsToFile(resultsPath, allRequestData) {
+    logger.info(`Savings results to ${resultsPath}...`)
     const resultsDir = path.dirname(resultsPath)
     if(fs.existsSync(resultsDir)) fs.rmdirSync(resultsDir, { recursive: true })
     fs.mkdirSync(resultsDir)
