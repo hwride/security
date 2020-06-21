@@ -73,7 +73,7 @@ Custom headers`,
 CORS aware: <span class="success">yes</span><br/>
 Allowed origins: <span class="success">all</span><br/>
 <code>Content-Type: application/json</code>`,
-        notes: `Non simple requests require a pre-flight (<code>OPTIONS</code>) request - non-safe 
+        notes: `Non simple requests require a pre-flight (<code>OPTIONS</code>) request - non-safe
 <code>Content-Type</code>.`,
         requestOptions: {
             method: 'POST',
@@ -83,6 +83,21 @@ Allowed origins: <span class="success">all</span><br/>
             body: '{ "json-body": true }'
         },
         url: '${server2}/cors-all-allowed-endpoint'
+    },
+    {
+        name: `Origin: cross<br/>
+CORS aware: <span class="success">yes</span><br/>
+Allowed origins: <span class="success">all</span><br/>
+<code>mode: 'no-cors'</code><br/>
+<code>method: 'PUT'</code>`,
+        notes: `Non simple requests cannot be made with <code>mode: no-cors</code>.`,
+        requestOptions: {
+            method: 'PUT',
+            mode: 'no-cors'
+        },
+        url: '${server2}/cors-all-allowed-endpoint',
+        expectNoResponseBody: true,
+        expectBlockedRequest: true
     },
     {
         name: `Origin: cross<br/>CORS aware: <span class="success">yes</span><br/>

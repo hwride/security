@@ -42,30 +42,41 @@ async function setupPage(config) {
 async function setupBrowserRequestCapturingFunction(page) {
     await page.evaluate(async () => {
         window.sendRequestAndCaptureDataScript = async function(url, requestOptions, readBody = true) {
-            const request = new Request(url, requestOptions)
+            // Code below to handle errors possibly occurring in request or response.
+            let request
             let response
             try {
-                response = await fetch(request)
+                request = new Request(url, requestOptions)
+            } catch(e) {
+                request = e
+            }
+            try {
+                if(!(request instanceof Error)) {
+                    request = new Request(url, requestOptions)
+                    response = await fetch(request)
+                }
             } catch(e) {
                 response = e
             }
+            const getErrorObj = e => ({ error: true, msg: `${e.name}: ${e.message}` })
             const data = {
-                request: {
+                request: request instanceof Error ? getErrorObj(request) : {
                     method: request.method,
                     url: request.url,
                     mode: request.mode,
                     credentials: request.credentials,
                     headers: JSON.stringify(request.headers, null , 2)
-                },
-                response: {
+                }
+            }
+            if(response) {
+                data.response = {
                     type: response.type,
                     headers: JSON.stringify(response.headers, null , 2),
                     status: response.status,
                     statusText: response.statusText
                 }
-            }
-            if(response instanceof Error) {
-                data.response.error = `${response.name}: ${response.message}`
+            } else if(response instanceof Error) {
+                data.response = getErrorObj(response)
             }
             if(readBody) {
                 data.response.body = await response.text()

@@ -174,14 +174,18 @@ function getNotesHTML(notes) {
 }
 
 function getScriptObjectHTML(object) {
-    if(object == null) return 'None'
-
-    let html = `<code class="pre">`
-    Object.entries(object).forEach(([key, value]) => {
-        html += `${key}: ${JSON.stringify(value, null, 2)}\n`
-    })
-    html += `</code>`
-    return html
+    if(object == null) {
+        return 'None'
+    } else if(object.error) {
+        return `<code><p class="console-error">[ERROR] ${object.msg}</p></code>`
+    } else {
+        let html = `<code class="pre">`
+        Object.entries(object).forEach(([key, value]) => {
+            html += `${key}: ${JSON.stringify(value, null, 2)}\n`
+        })
+        html += `</code>`
+        return html
+    }
 }
 
 function convertRawHeadersToHTML(rawHeaders) {
