@@ -15,10 +15,8 @@ exports.setupProxyServers = function(server1MainPort, server1ProxyPort,
 
 exports.shutdownProxyServers = function({ proxyServer1, proxyServer2 }) {
 	logger.info('Shutting down proxy server 1...')
-	proxyServer1.httpServer.close()
 	proxyServer1.nodeHTTPProxy.close()
 	logger.info('Shutting down proxy server 2...')
-	proxyServer2.httpServer.close()
 	proxyServer2.nodeHTTPProxy.close()
 }
 
@@ -26,7 +24,8 @@ function createProxy(sourcePort, targetPort) {
 	const proxyURL = `http://localhost:${sourcePort}`
 	const proxyTargetBaseURL = `http://localhost:${targetPort}`
 
-	const nodeHTTPProxy = httpProxy.createProxyServer({})
+	const nodeHTTPProxy = httpProxy.createProxyServer({ target: proxyTargetBaseURL }).listen(sourcePort)
+	logger.info(`Proxy server listening on port ${sourcePort} and forwarding to ${targetPort}`)
 
 	// Event listener utility functions.
 	let eventListeners = []
@@ -60,16 +59,8 @@ function createProxy(sourcePort, targetPort) {
 		});
 	})
 
-	// Setup HTTP server to intercept requests and forward with the proxy.
-	const httpServer = http.createServer((req, res) => {
-		nodeHTTPProxy.web(req, res, { target: proxyTargetBaseURL })
-	});
-	httpServer.listen(sourcePort)
-	logger.info(`Proxy server listening on port ${sourcePort} and forwarding to ${targetPort}`)
-
 	return {
 		nodeHTTPProxy,
-		httpServer,
 		on,
 		off
 	}
