@@ -54,7 +54,6 @@ function createProxy(sourcePort, targetPort) {
 		proxyRes.on('data', chunk => responseBodyData.push(chunk))
 		proxyRes.on('end', function() {
 			responseData.body = Buffer.concat(responseBodyData).toString()
-			res.end("my response to cli")
 			trigger('response-finished', responseData)
 		});
 	})

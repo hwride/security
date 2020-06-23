@@ -118,7 +118,7 @@ function getServerResponseHTML(requestData) {
     if(proxyResponses.length === 0) return 'None'
     else {
         let html = ''
-        proxyResponses.forEach(proxyResponse => html += getServerResponseHTMLSingle(proxyResponse) + '\n')
+        proxyResponses.forEach(proxyResponse => html += getServerResponseHTMLSingle(proxyResponse) + '<br/>')
         return html
     }
 
@@ -126,14 +126,19 @@ function getServerResponseHTML(requestData) {
         let responseStr = ''
 
         // Status.
-        const status = response.proxyRes.statusCode
-        let statusLine = `${status} ${response.proxyRes.statusMessage}`
+        const status = response.res.statusCode
+        let statusLine = `${status} ${response.res.statusMessage}`
         let statusClass = status != null && (status >= 200 && status < 400) ? 'success' : 'error'
         statusLine = `<span class="${statusClass}">${statusLine}</span>\n`
         responseStr += statusLine
 
         // Headers.
-        responseStr += convertRawHeadersToHTML(response.proxyRes.rawHeaders)
+        const headersCapitalised = {}
+        Object.entries(response.res.getHeaders()).forEach(([ key, val ]) => {
+            const capitalisedKey = key.split('-').map(k => k.charAt(0).toUpperCase() + k.slice(1)).join('-')
+            headersCapitalised[capitalisedKey] = val
+        })
+        responseStr += convertHeadersObjectToHTML(headersCapitalised)
 
         // Body.
         responseStr += response.body != null ? response.body : `<span class="error">[No body]</span>`
@@ -192,8 +197,8 @@ function convertRawHeadersToHTML(rawHeaders) {
     // Convert raw headers to object.
     const headers = {}
     let key
-    for(const rawHeader of rawHeaders) {
-        if(!key) {
+    for (const rawHeader of rawHeaders) {
+        if (!key) {
             key = rawHeader
         } else {
             headers[key] = rawHeader
@@ -201,10 +206,14 @@ function convertRawHeadersToHTML(rawHeaders) {
         }
     }
 
+    return convertHeadersObjectToHTML(headers)
+}
+
+function convertHeadersObjectToHTML(headersObject) {
     // Convert headers object to HTML.
     let headersStr = ''
-    if(headers) {
-        Object.entries(headers).forEach(([name, value]) => {
+    if(headersObject) {
+        Object.entries(headersObject).forEach(([name, value]) => {
             headersStr += `${name}: ${value}\n`
         })
     }
