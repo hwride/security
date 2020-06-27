@@ -3,15 +3,15 @@ const http = require('http')
 const httpProxy = require('http-proxy')
 const logger = require('../framework/logging').createLogger('severs-proxy')
 
-exports.setupProxyServers = function(proxyPort) {
+exports.setupProxyServer = function(proxyPort) {
 	logger.info('Setting up proxy server...')
 	return createProxy(proxyPort)
 }
 
-exports.shutdownProxyServers = function({ nodeHTTPProxy, httpServer }) {
+exports.shutdownProxyServer = function({ nodeHTTPProxy, httpServer }) {
 	logger.info('Shutting down proxy server...')
 	nodeHTTPProxy.close()
-    httpServer.close()
+	httpServer.close()
 }
 
 function createProxy(sourcePort) {

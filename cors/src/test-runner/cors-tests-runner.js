@@ -1,181 +1,35 @@
-const puppeteer = require('puppeteer')
 const path = require('path')
-const { setupServers, shutdownServers } = require('../servers/servers')
-const { setupLogging, createLogger, logColours } = require('../framework/logging')
-const saveResultsAsHTML = require('../result-writing/results-html-creator')
 
+const { setupMainServers, shutdownMainServers } = require('../servers/servers-main')
+const { setupLogging } = require('../framework/logging')
+const testRequests = require('../chromium-request-tester/chromium-request-tester')
 const testDefinitions = require('../test-definitions')
-
-const logger = createLogger('run-cors-tests')
 
 module.exports = async function runCORSTests(config) {
     // Setup.
     setupLogging(config.log)
-    const servers = setupServers(config.ports)
-    const { browser, page } = await setupPage(config.puppeteer, config.ports)
+    const mainServers = setupMainServers(config.ports.server1, config.ports.server2)
 
     // Make requests.
-    const allRequestData = await makeTestRequests(page, config.ports, servers.proxyServer, testDefinitions)
-
-    // Save results to file.
-    const resultsPath = path.resolve(config.resultsPath)
-    saveResultsToFile(resultsPath, allRequestData)
+    const server1URL = `http://localhost:${config.ports.server1}`
+    const server2URL = `http://localhost:${config.ports.server2}`
+    await testRequests({
+        puppeteerConfig: config.puppeteer,
+        proxyPort: config.ports.proxy,
+        mainPageURL: server1URL,
+        testDefinitions: getTestDefinitions(testDefinitions, server1URL, server2URL),
+        resultsPath: path.resolve(config.resultsPath)
+    })
 
     // Teardown.
-    await cleanup(browser, servers)
+    shutdownMainServers(mainServers)
 }
 
-async function setupPage(puppeteerConfig, portConfig) {
-    const browser = await puppeteer.launch({
-        ...puppeteerConfig,
-        args: [
-            `--proxy-server=localhost:${portConfig.proxy}`,
-            // Need the following line to get it to work, see: https://github.com/puppeteer/puppeteer/issues/3711#issuecomment-451007780
-            '--proxy-bypass-list=<-loopback>'
-        ]
-    })
-    const page = await browser.newPage()
-    page.on('console', msg => logger.info('[Page] ' + msg.text()))
-
-    await page.goto(getServerURL(portConfig.server1))
-    await setupBrowserRequestCapturingFunction(page)
-
-    return { browser, page }
-}
-
-/**
- * Sets up a global function on the page which will send a request and capture its request data.
- */
-async function setupBrowserRequestCapturingFunction(page) {
-    await page.evaluate(async () => {
-        window.sendRequestAndCaptureDataScript = async function(url, requestOptions, readBody = true) {
-            // Code below to handle errors possibly occurring in request or response.
-            let request
-            let response
-            try {
-                request = new Request(url, requestOptions)
-            } catch(e) {
-                request = e
-            }
-            try {
-                if(!(request instanceof Error)) {
-                    request = new Request(url, requestOptions)
-                    response = await fetch(request)
-                }
-            } catch(e) {
-                response = e
-            }
-            const getErrorObj = e => ({ error: true, msg: `${e.name}: ${e.message}` })
-            const data = {
-                request: request instanceof Error ? getErrorObj(request) : {
-                    method: request.method,
-                    url: request.url,
-                    mode: request.mode,
-                    credentials: request.credentials,
-                    headers: JSON.stringify(request.headers, null , 2)
-                }
-            }
-            if(response) {
-                data.response = {
-                    type: response.type,
-                    headers: JSON.stringify(response.headers, null , 2),
-                    status: response.status,
-                    statusText: response.statusText
-                }
-            } else if(response instanceof Error) {
-                data.response = getErrorObj(response)
-            }
-            if(readBody) {
-                data.response.body = await response.text()
-            }
-            return data
-        }
-    })
-}
-
-/**
- * Make some requests logging data about those requests.
- * @param page Page object. We will trigger requests and capture script request data from here.
- * @param proxyServer Proxy server requests are made via, we will capture server request data from here.
- * @param requestsToMake Array of requests to make.
- * @returns {Promise<[]>}
- */
-async function makeRequests(page, proxyServer, requestsToMake) {
-    const requestData = []
-
-    // Ensure requests happen one at a time so all event capturing we are doing lines up correctly.
-    for(const request of requestsToMake) {
-        const requestMsg = `Processing request: ${request.name}`
-        logger.info('-'.repeat(requestMsg.length))
-        logger.info(requestMsg)
-        logger.info('-'.repeat(requestMsg.length))
-
-        const thisRequestData = {
-            name: request.name,
-            notes: request.notes,
-            expectNoResponseBody: request.expectNoResponseBody,
-        }
-        requestData.push(thisRequestData)
-
-        // Capture console data for this request.
-        thisRequestData.consoleMessages = []
-        const captureConsoleMessage = msg => thisRequestData.consoleMessages.push(msg)
-        page.on('console', captureConsoleMessage)
-
-        // Capture server request data via the proxies for this request.
-        thisRequestData.proxyServer = { requests: [], responses: [] }
-        const captureRequestData = data => thisRequestData.proxyServer.requests.push(data)
-        proxyServer.on('request-finished', captureRequestData)
-        const captureResponseData = data => thisRequestData.proxyServer.responses.push(data)
-        proxyServer.on('response-finished', captureResponseData)
-
-        Object.assign(thisRequestData, await sendRequestAndCaptureScriptData(page, request.url, request.requestOptions,
-          request.expectNoResponseBody))
-
-        // Remove per-request event listeners.
-        page.off('console', captureConsoleMessage)
-        proxyServer.off('request-finished', captureRequestData)
-        proxyServer.off('response-finished', captureResponseData)
-
-        logger.info('')
-    }
-
-    return requestData
-}
-
-async function sendRequestAndCaptureScriptData(page, url, requestOptions, expectNoResponseBody) {
-    const responseScript = await page.evaluate((url, requestOptions = {}, expectNoResponseBody) => {
-        return sendRequestAndCaptureDataScript(url, requestOptions, !expectNoResponseBody)
-    }, url, requestOptions, expectNoResponseBody)
-    return {
-        requestSentByScript: responseScript.request,
-        responseReceivedByScript: responseScript.response
-    }
-}
-
-async function makeTestRequests(page, portsConfig, proxyServer, testDefinitions) {
-    const testDefsReplaced = testDefinitions.map(testDef => ({
+function getTestDefinitions(testDefinitions, server1URL, server2URL) {
+    return testDefinitions.map(testDef => ({
         ...testDef,
         url: testDef.url
-            .replace('${server1}', getServerURL(portsConfig.server1))
-            .replace('${server2}', getServerURL(portsConfig.server2))
+          .replace('${server1}', server1URL)
+          .replace('${server2}', server2URL)
     }))
-    return await makeRequests(page, proxyServer, testDefsReplaced)
-}
-
-function getServerURL(port) {
-    return `http://localhost:${port}`
-}
-
-function saveResultsToFile(resultsPath, allRequestData) {
-    logger.info(`Savings results to ${resultsPath}...`)
-    const resultsDir = path.dirname(resultsPath)
-    if(fs.existsSync(resultsDir)) fs.rmdirSync(resultsDir, { recursive: true })
-    fs.mkdirSync(resultsDir)
-    saveResultsAsHTML(allRequestData, resultsPath)
-}
-
-async function cleanup(browser, servers) {
-    await browser.close();
-    shutdownServers(servers)
 }
