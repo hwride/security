@@ -22,26 +22,23 @@ function createProxy(sourcePort) {
 	// Handle uncaptured promise errors.
 	ee[Symbol.for('nodejs.rejection')] = e => logger.error(`Unhandled error occurred: ${e}`)
 
-	// Listen for requests.
-	nodeHTTPProxy.on('proxyReq', function(proxyReq, req) {
-		const requestData = { proxyReq, req }
-		let requestBodyData = [];
-		req.on('data', chunk => requestBodyData.push(chunk))
-		req.on('end', () => {
-			requestData.body = Buffer.concat(requestBodyData).toString()
-			ee.emit('request-finished', requestData)
+	// Listen for requests and responses.
+	const captureBody = (listenObj) => {
+		let data = [];
+		return new Promise(resolve => {
+			listenObj.on('data', chunk => data.push(chunk))
+			listenObj.on('end', () => {
+				resolve(Buffer.concat(data).toString())
+			})
 		})
+	}
+	nodeHTTPProxy.on('proxyReq', async function(proxyReq, req) {
+		const body = await captureBody(req)
+		ee.emit('request-finished', { proxyReq, req, body })
 	})
-
-	// Listen for responses.
-	nodeHTTPProxy.on('proxyRes', function(proxyRes, req, res) {
-		const responseBodyData = [];
-		const responseData = { proxyRes, res }
-		proxyRes.on('data', chunk => responseBodyData.push(chunk))
-		proxyRes.on('end', function() {
-			responseData.body = Buffer.concat(responseBodyData).toString()
-			ee.emit('response-finished', responseData)
-		})
+	nodeHTTPProxy.on('proxyRes', async function(proxyRes, req, res) {
+		const body = await captureBody(proxyRes)
+		ee.emit('response-finished', { proxyRes, res, body })
 	})
 
     // Setup HTTP server to intercept requests and forward with the proxy.
