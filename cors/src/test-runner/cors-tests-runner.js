@@ -125,16 +125,18 @@ async function makeRequests(page, proxyServer, requestsToMake) {
 
         // Capture server request data via the proxies for this request.
         thisRequestData.proxyServer = { requests: [], responses: [] }
-        proxyServer.on('request-finished', data => thisRequestData.proxyServer.requests.push(data))
-        proxyServer.on('response-finished', data => thisRequestData.proxyServer.responses.push(data))
+        const captureRequestData = data => thisRequestData.proxyServer.requests.push(data)
+        proxyServer.on('request-finished', captureRequestData)
+        const captureResponseData = data => thisRequestData.proxyServer.responses.push(data)
+        proxyServer.on('response-finished', captureResponseData)
 
         Object.assign(thisRequestData, await sendRequestAndCaptureScriptData(page, request.url, request.requestOptions,
           request.expectNoResponseBody, request.expectBlockedRequest))
 
         // Remove per-request event listeners.
         page.off('console', captureConsoleMessage)
-        proxyServer.off('request-finished')
-        proxyServer.off('response-finished')
+        proxyServer.off('request-finished', captureRequestData)
+        proxyServer.off('response-finished', captureResponseData)
 
         logger.info('')
     }

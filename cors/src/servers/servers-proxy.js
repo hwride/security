@@ -1,3 +1,4 @@
+const EventEmitter = require('events')
 const http = require('http')
 const httpProxy = require('http-proxy')
 const logger = require('../framework/logging').createLogger('severs-proxy')
@@ -17,13 +18,9 @@ function createProxy(sourcePort) {
     const nodeHTTPProxy = httpProxy.createProxyServer({})
 
 	// Event listener utility functions.
-	let eventListeners = []
-	const on = (evt, cb) => eventListeners.push({ evt, cb })
-	// Remove every event listener for the given event, all we need at the moment.
-	const off = (evt) => eventListeners = eventListeners.filter(evtL => evtL.evt !== evt)
-	const trigger = (triggeredEvt, data) => {
-		eventListeners.forEach(({ evt, cb }) => { if(triggeredEvt === evt) cb(data) })
-	}
+	const ee = new EventEmitter({ captureRejections: true })
+	// Handle uncaptured promise errors.
+	ee[Symbol.for('nodejs.rejection')] = e => logger.error(`Unhandled error occurred: ${e}`)
 
 	// Listen for requests.
 	nodeHTTPProxy.on('proxyReq', function(proxyReq, req) {
@@ -32,7 +29,7 @@ function createProxy(sourcePort) {
 		req.on('data', chunk => requestBodyData.push(chunk))
 		req.on('end', () => {
 			requestData.body = Buffer.concat(requestBodyData).toString()
-			trigger('request-finished', requestData)
+			ee.emit('request-finished', requestData)
 		})
 	})
 
@@ -43,7 +40,7 @@ function createProxy(sourcePort) {
 		proxyRes.on('data', chunk => responseBodyData.push(chunk))
 		proxyRes.on('end', function() {
 			responseData.body = Buffer.concat(responseBodyData).toString()
-			trigger('response-finished', responseData)
+			ee.emit('response-finished', responseData)
 		})
 	})
 
@@ -59,7 +56,7 @@ function createProxy(sourcePort) {
 	return {
 		nodeHTTPProxy,
         httpServer,
-		on,
-		off
+		on: ee.on.bind(ee),
+		off: ee.off.bind(ee)
 	}
 }
