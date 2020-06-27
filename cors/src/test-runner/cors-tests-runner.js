@@ -113,7 +113,6 @@ async function makeRequests(page, proxyServer, requestsToMake) {
         const thisRequestData = {
             name: request.name,
             notes: request.notes,
-            expectBlockedRequest: request.expectBlockedRequest,
             expectNoResponseBody: request.expectNoResponseBody,
         }
         requestData.push(thisRequestData)
@@ -131,7 +130,7 @@ async function makeRequests(page, proxyServer, requestsToMake) {
         proxyServer.on('response-finished', captureResponseData)
 
         Object.assign(thisRequestData, await sendRequestAndCaptureScriptData(page, request.url, request.requestOptions,
-          request.expectNoResponseBody, request.expectBlockedRequest))
+          request.expectNoResponseBody))
 
         // Remove per-request event listeners.
         page.off('console', captureConsoleMessage)
@@ -144,14 +143,11 @@ async function makeRequests(page, proxyServer, requestsToMake) {
     return requestData
 }
 
-async function sendRequestAndCaptureScriptData(page, url, requestOptions, expectNoResponseBody, expectBlockedRequest) {
-    const waitForRequestPromise = expectBlockedRequest ? Promise.resolve() : page.waitForRequest(url)
+async function sendRequestAndCaptureScriptData(page, url, requestOptions, expectNoResponseBody) {
     const responseScript = await page.evaluate((url, requestOptions = {}, expectNoResponseBody) => {
         return sendRequestAndCaptureDataScript(url, requestOptions, !expectNoResponseBody)
     }, url, requestOptions, expectNoResponseBody)
-    const requestBrowser = await waitForRequestPromise
     return {
-        cdpRequestID: expectBlockedRequest ? null : requestBrowser._requestId,
         requestSentByScript: responseScript.request,
         responseReceivedByScript: responseScript.response
     }
