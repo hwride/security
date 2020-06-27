@@ -94,7 +94,7 @@ function getScriptRequestHTML(requestSentByScript) {
 function getServerRequestHTML(requestData) {
     // Combining all proxy requests here for the sake of completeness, but would expect only requests from a
     // single proxy server.
-    const proxyRequests = requestData.proxyServer1.requests.concat(requestData.proxyServer2.requests)
+    const proxyRequests = requestData.proxyServer.requests
     if(proxyRequests.length === 0) return 'None'
     else {
         let html = ''
@@ -103,7 +103,7 @@ function getServerRequestHTML(requestData) {
     }
 
     function getServerRequestHTMLSingle(proxyRequest) {
-        let html = `<code class="pre">${proxyRequest.req.method} ${proxyRequest.proxyURL}${proxyRequest.req.url}\n`
+        let html = `<code class="pre">${proxyRequest.req.method} ${proxyRequest.req.url}\n`
         html += convertRawHeadersToHTML(proxyRequest.req.rawHeaders)
         html += `${proxyRequest.body}`
         html += `<code>`
@@ -114,7 +114,7 @@ function getServerRequestHTML(requestData) {
 function getServerResponseHTML(requestData) {
     // Combining all proxy responses here for the sake of completeness, but would expect only responses from a
     // single proxy server.
-    const proxyResponses = requestData.proxyServer1.responses.concat(requestData.proxyServer2.responses)
+    const proxyResponses = requestData.proxyServer.responses
     if(proxyResponses.length === 0) return 'None'
     else {
         let html = ''

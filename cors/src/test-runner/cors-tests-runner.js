@@ -12,10 +12,10 @@ module.exports = async function runCORSTests(config) {
     // Setup.
     setupLogging(config.log)
     const servers = setupServers(config.ports)
-    const { browser, page } = await setupPage(config)
+    const { browser, page } = await setupPage(config.puppeteer, config.ports)
 
     // Make requests.
-    const allRequestData = await makeTestRequests(page, config.ports, servers.proxyServers, testDefinitions)
+    const allRequestData = await makeTestRequests(page, config.ports, servers.proxyServer, testDefinitions)
 
     // Save results to file.
     const resultsPath = path.resolve(config.resultsPath)
@@ -25,12 +25,19 @@ module.exports = async function runCORSTests(config) {
     await cleanup(browser, servers)
 }
 
-async function setupPage(config) {
-    const browser = await puppeteer.launch(config.puppeteer)
+async function setupPage(puppeteerConfig, portConfig) {
+    const browser = await puppeteer.launch({
+        ...puppeteerConfig,
+        args: [
+            `--proxy-server=localhost:${portConfig.proxy}`,
+            // Need the following line to get it to work, see: https://github.com/puppeteer/puppeteer/issues/3711#issuecomment-451007780
+            '--proxy-bypass-list=<-loopback>'
+        ]
+    })
     const page = await browser.newPage()
     page.on('console', msg => logger.info('[Page] ' + msg.text()))
 
-    await page.goto(getProxyServerURL(config.ports.server1.proxy))
+    await page.goto(getServerURL(portConfig.server1))
     await setupBrowserRequestCapturingFunction(page)
 
     return { browser, page }
@@ -89,11 +96,11 @@ async function setupBrowserRequestCapturingFunction(page) {
 /**
  * Make some requests logging data about those requests.
  * @param page Page object. We will trigger requests and capture script request data from here.
- * @param proxyServers Proxy servers requests are made via, we will capture server request data from here.
+ * @param proxyServer Proxy server requests are made via, we will capture server request data from here.
  * @param requestsToMake Array of requests to make.
  * @returns {Promise<[]>}
  */
-async function makeRequests(page, proxyServers, requestsToMake) {
+async function makeRequests(page, proxyServer, requestsToMake) {
     const requestData = []
 
     // Ensure requests happen one at a time so all event capturing we are doing lines up correctly.
@@ -117,25 +124,17 @@ async function makeRequests(page, proxyServers, requestsToMake) {
         page.on('console', captureConsoleMessage)
 
         // Capture server request data via the proxies for this request.
-        const setupProxyListeners = name => {
-            thisRequestData[name] = { requests: [], responses: [] }
-            proxyServers[name].on('request-finished', data => thisRequestData[name].requests.push(data))
-            proxyServers[name].on('response-finished', data => thisRequestData[name].responses.push(data))
-        }
-        setupProxyListeners('proxyServer1')
-        setupProxyListeners('proxyServer2')
+        thisRequestData.proxyServer = { requests: [], responses: [] }
+        proxyServer.on('request-finished', data => thisRequestData.proxyServer.requests.push(data))
+        proxyServer.on('response-finished', data => thisRequestData.proxyServer.responses.push(data))
 
         Object.assign(thisRequestData, await sendRequestAndCaptureScriptData(page, request.url, request.requestOptions,
           request.expectNoResponseBody, request.expectBlockedRequest))
 
         // Remove per-request event listeners.
         page.off('console', captureConsoleMessage)
-        const removeProxyEventListeners = name => {
-            proxyServers[name].off('request-finished')
-            proxyServers[name].off('response-finished')
-        }
-        removeProxyEventListeners('proxyServer1')
-        removeProxyEventListeners('proxyServer2')
+        proxyServer.off('request-finished')
+        proxyServer.off('response-finished')
 
         logger.info('')
     }
@@ -156,17 +155,17 @@ async function sendRequestAndCaptureScriptData(page, url, requestOptions, expect
     }
 }
 
-async function makeTestRequests(page, portsConfig, proxyServers, testDefinitions) {
+async function makeTestRequests(page, portsConfig, proxyServer, testDefinitions) {
     const testDefsReplaced = testDefinitions.map(testDef => ({
         ...testDef,
         url: testDef.url
-            .replace('${server1}', getProxyServerURL(portsConfig.server1.proxy))
-            .replace('${server2}', getProxyServerURL(portsConfig.server2.proxy))
+            .replace('${server1}', getServerURL(portsConfig.server1))
+            .replace('${server2}', getServerURL(portsConfig.server2))
     }))
-    return await makeRequests(page, proxyServers, testDefsReplaced)
+    return await makeRequests(page, proxyServer, testDefsReplaced)
 }
 
-function getProxyServerURL(port) {
+function getServerURL(port) {
     return `http://localhost:${port}`
 }
 

@@ -1,14 +1,16 @@
 module.exports = {
     resultsPath: __dirname + '/../generated/results.html',
     ports: {
-        server1: { proxy: 8080, main: 8090 },
-        server2: { proxy: 8081, main: 8091 }
+        server1: 8080,
+        server2: 8081,
+        proxy: 9000
     },
     puppeteer: {
         headless: true
     },
     log: {
         'run-cors-tests': 'INFO',
-        'cdp-request-logging': 'INFO'
+        'cdp-request-logging': 'INFO',
+        'servers-main': 'INFO'
     }
 }
