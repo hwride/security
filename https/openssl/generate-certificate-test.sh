@@ -2,10 +2,13 @@
 # Requirements: openssl
 
 # Cleanup
-rm -r server
-rm -r certificate-authority
-mkdir server
-mkdir certificate-authority
+rm server/private-key.key
+rm server/server.csr
+rm server/signed-certificate.crt
+rm certificate-authority/private-key.key
+rm certificate-authority/ca-root.crt
+mkdir -p server
+mkdir -p certificate-authority
 
 ## Setup Certificate Authority.
 # Generate CA private key.
@@ -33,7 +36,7 @@ echo '--- Generating certificate signing request ---'
 openssl req -new \
   -key server/private-key.key \
   -out server/server.csr \
-  -subj "/C=UK/ST=London/L=London/O=SSL Test Org/OU=IT/CN=server.local"
+  -subj "/C=UK/ST=London/L=London/O=SSL Test Org/OU=IT/CN=localhost"
 
 echo ''
 echo '--- CA creating signed certificate from CSR ---'
@@ -45,7 +48,9 @@ openssl x509 -req \
   -CAcreateserial \
   -out server/signed-cert.crt \
   -days 500 \
-  -sha256
+  -sha256 \
+  -extfile certificate-authority/v3.ext
+# -extfile is required to assign Subject Alternative Name which Chrome requires to trust an SSL certificate.
 
 echo ''
 echo 'Commands'

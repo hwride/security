@@ -1,2 +1,6 @@
-certificate-authority
-server
+certificate-authority/private-key.key
+certificate-authority/ca-root.crt
+certificate-authority/ca-root.srl
+server/private-key.key
+server/server.csr
+server/signed-cert.crt
