@@ -50,6 +50,7 @@ openssl x509 -req \
 echo ''
 echo 'Commands'
 echo '--------'
+echo 'Verify signed certificate against CA: openssl verify -x509_strict --CAfile certificate-authority/ca-root.crt server/signed-cert.crt'
 echo 'View CA root cert: openssl x509 -in certificate-authority/ca-root.crt -text -noout'
 echo 'View CSR: openssl req -text -noout -verify -in server/server.csr'
 echo 'View CA signed certificated: openssl x509 -in server/signed-cert.crt -text -noout'
