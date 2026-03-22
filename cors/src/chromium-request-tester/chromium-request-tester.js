@@ -8,8 +8,7 @@ const saveResultsAsHTML = require('../result-writing/results-html-creator')
 const logger = createLogger('run-cors-tests')
 
 /**
- * Makes test requests from Chromium dev tools, captures data about the requests, and optionally writes it to HTML for
- * display.
+ * Makes test requests from Chromium dev tools, captures data about the requests, and optionally writes it to HTML for display.
  *
  * The following data is captured:
  * - Request data seen by script.
@@ -83,7 +82,6 @@ async function setupBrowserRequestCapturingFunction(page) {
             }
             try {
                 if(!(request instanceof Error)) {
-                    request = new Request(url, requestOptions)
                     response = await fetch(request)
                 }
             } catch(e) {
