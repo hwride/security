@@ -1,0 +1,9 @@
+{
+  "type": "module",
+  "scripts": {
+    "dev": "node server-app.ts"
+  },
+  "dependencies": {
+    "fastify": "^5.8.4"
+  }
+}
