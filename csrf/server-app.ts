@@ -2,9 +2,7 @@ import Fastify from "fastify";
 
 const fastify = Fastify({
   logger: {
-    transport: {
-      target: "pino-pretty",
-    },
+    transport: { target: "pino-pretty" },
   },
 });
 
