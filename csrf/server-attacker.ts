@@ -8,32 +8,19 @@ const fastify = Fastify({
 
 fastify.get("/", function (request, reply) {
   reply.header("Content-Type", "text/html; charset=utf-8").send(`<html>
-  <head>
-    <title>App</title>
-  </head>
-  <body>
-    <h1>App</h1>
-  <ul>
-    <li><a href="/text">/text</a></li>
-    <li><a href="/json">/json</a></li>
-  </ul>
+<head>
+  <title>App</title>
+</head>
+<body>
+  <h1>App</h1>
+  <form method="POST" action="http://localhost:3000/text">
+    <button type="submit">Submit</button>
+  </form>
 </body>
 </html>`);
 });
 
-fastify.get("/text", function (request, reply) {
-  reply.send("GET text response");
-});
-
-fastify.post("/text", function (request, reply) {
-  reply.send("POST text response");
-});
-
-fastify.get("/json", function (request, reply) {
-  reply.send({ json: "value" });
-});
-
-fastify.listen({ port: 3000 }, function (err, address) {
+fastify.listen({ port: 4000 }, function (err, address) {
   if (err) {
     fastify.log.error(err);
     process.exit(1);

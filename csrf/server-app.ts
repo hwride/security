@@ -8,11 +8,11 @@ const fastify = Fastify({
 
 fastify.get("/", function (request, reply) {
   reply.header("Content-Type", "text/html; charset=utf-8").send(`<html>
-  <head>
-    <title>App</title>
-  </head>
-  <body>
-    <h1>App</h1>
+<head>
+  <title>App</title>
+</head>
+<body>
+  <h1>App</h1>
   <ul>
     <li><a href="/text">/text</a></li>
     <li><a href="/json">/json</a></li>
