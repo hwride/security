@@ -1,9 +1,12 @@
 {
   "type": "module",
   "scripts": {
-    "dev": "node server-app.ts"
+    "dev": "node --watch server-app.ts"
   },
   "dependencies": {
     "fastify": "^5.8.4"
+  },
+  "devDependencies": {
+    "pino-pretty": "^13.1.3"
   }
 }
