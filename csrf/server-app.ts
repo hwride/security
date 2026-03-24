@@ -11,7 +11,11 @@ fastify.get("/", function (request, reply) {
 });
 
 fastify.get("/text", function (request, reply) {
-  reply.send("Test response");
+  reply.send("GET text response");
+});
+
+fastify.post("/text", function (request, reply) {
+  reply.send("POST text response");
 });
 
 fastify.listen({ port: 3000 }, function (err, address) {
