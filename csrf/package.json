@@ -1,7 +1,8 @@
 {
   "type": "module",
   "scripts": {
-    "dev": "node --watch server-app.ts"
+    "dev-app": "node --watch server-app.ts",
+    "dev-attacker": "node --watch server-attacker.ts"
   },
   "dependencies": {
     "fastify": "^5.8.4"
