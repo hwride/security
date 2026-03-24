@@ -5,6 +5,7 @@
     "dev-attacker": "node --watch server-attacker.ts"
   },
   "dependencies": {
+    "@fastify/formbody": "^8.0.2",
     "fastify": "^5.8.4"
   },
   "devDependencies": {

