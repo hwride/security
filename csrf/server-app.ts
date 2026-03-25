@@ -9,6 +9,18 @@ const fastify = Fastify({
 
 await fastify.register(formbody);
 
+const SESSION_COOKIE_NAME = "session";
+const SESSION_COOKIE_VALUE = "demo-session";
+
+function hasValidSession(cookieHeader: string | undefined) {
+  if (!cookieHeader) {
+    return false;
+  }
+
+  const cookies = cookieHeader.split(";").map((cookie) => cookie.trim());
+  return cookies.includes(`${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}`);
+}
+
 fastify.get("/", function (request, reply) {
   reply.header("Content-Type", "text/html; charset=utf-8").send(`<html>
 <head>
@@ -16,6 +28,9 @@ fastify.get("/", function (request, reply) {
 </head>
 <body>
   <h1>App</h1>
+  <form method="POST" action="/login">
+    <button type="submit">Log in</button>
+  </form>
   <ul>
     <li><a href="/transfer-demo">Transfer Demo</a></li>
     <li><a href="/transfer-json-demo">Transfer JSON Demo</a></li>
@@ -23,6 +38,15 @@ fastify.get("/", function (request, reply) {
   </ul>
 </body>
 </html>`);
+});
+
+fastify.post("/login", function (request, reply) {
+  reply
+    .header(
+      "Set-Cookie",
+      `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}; Path=/; HttpOnly; SameSite=Lax`
+    )
+    .redirect(303, "/");
 });
 
 fastify.get("/transfer-demo", function (request, reply) {
@@ -83,6 +107,22 @@ type TransferBody = {
 };
 // This is a simple request for Same-Origin Policy purposes - i.e. it doesn't need a pre-flight request.
 fastify.post("/transfer", function (request, reply) {
+  if (!hasValidSession(request.headers.cookie)) {
+    reply
+      .code(401)
+      .header("Content-Type", "text/html; charset=utf-8")
+      .send(`<html>
+<head>
+  <title>Unauthorized</title>
+</head>
+<body>
+  <h1>Unauthorized</h1>
+  <p>Please log in first.</p>
+</body>
+</html>`);
+    return;
+  }
+
   const body = request.body as TransferBody;
   const to = body.to ?? "";
   const amount = body.amount ?? "";
@@ -107,6 +147,17 @@ type TransferJsonBody = {
 
 // This is a non-simple request for Same-Origin Policy purposes - JSON and custom headers cause a pre-flight for cross-origin requests.
 fastify.post("/transfer-json", function (request, reply) {
+  if (!hasValidSession(request.headers.cookie)) {
+    reply
+      .code(401)
+      .header("Content-Type", "text/html; charset=utf-8")
+      .send(`<section>
+  <h2>Unauthorized</h2>
+  <p>Please log in first.</p>
+</section>`);
+    return;
+  }
+
   const body = request.body as TransferJsonBody;
   const to = body.to ?? "";
   const amount = body.amount ?? "";
