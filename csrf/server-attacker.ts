@@ -19,6 +19,39 @@ fastify.get("/", function (request, reply) {
     <input type="hidden" name="amount" value="1000" />
     <button type="submit">Claim reward</button>
   </form>
+
+  <hr />
+  <h2>Try the non-simple transfer endpoint</h2>
+  <p>
+    This uses JSON and a custom header, so the browser should send a pre-flight
+    request before attempting the cross-origin POST.
+  </p>
+  <button type="button" id="claim-json-reward">Claim JSON reward</button>
+  <pre id="json-result"></pre>
+
+  <script>
+    const button = document.getElementById("claim-json-reward");
+    const result = document.getElementById("json-result");
+
+    button.addEventListener("click", async () => {
+      result.textContent = "Sending cross-origin JSON transfer...";
+
+      try {
+        const response = await fetch("http://localhost:3000/transfer-json", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Transfer-Intent": "attacker",
+          },
+          body: JSON.stringify({ to: "mallory", amount: "1000" }),
+        });
+
+        result.textContent = "Response status: " + response.status;
+      } catch (error) {
+        result.textContent = "Request failed: " + error;
+      }
+    });
+  </script>
 </body>
 </html>`);
 });
