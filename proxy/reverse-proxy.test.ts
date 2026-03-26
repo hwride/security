@@ -18,8 +18,16 @@ afterEach(async () => {
 });
 
 test("proxies requests to the backend matched by host", async () => {
-  await createBackendServer(3000, "service on 3000");
-  await createBackendServer(4000, "service on 4000");
+  await createBackendServer({
+    port: 3000,
+    body: "service on 3000",
+    headers: {
+      "content-type": "text/plain",
+      "set-cookie": "session=abc123; HttpOnly",
+      "x-backend-name": "service-on-3000",
+    },
+  });
+  await createBackendServer({ port: 4000, body: "service on 4000" });
 
   const { makeProxyRequest } = await createProxyServer({
     port: 0,
@@ -34,6 +42,13 @@ test("proxies requests to the backend matched by host", async () => {
   });
   expect(exampleDotComResponse.statusCode).toBe(200);
   expect(exampleDotComResponse.body).toBe("service on 3000");
+  expect(exampleDotComResponse.headers["content-type"]).toBe("text/plain");
+  expect(exampleDotComResponse.headers["set-cookie"]).toEqual([
+    "session=abc123; HttpOnly",
+  ]);
+  expect(exampleDotComResponse.headers["x-backend-name"]).toBe(
+    "service-on-3000",
+  );
 
   const exampleDotTestResponse = await makeProxyRequest({
     hostHeader: "example.test",
@@ -43,7 +58,7 @@ test("proxies requests to the backend matched by host", async () => {
 });
 
 test("proxies requests when the Host header includes the port", async () => {
-  await createBackendServer(3000, "service on 3000");
+  await createBackendServer({ port: 3000, body: "service on 3000" });
 
   const { proxyPort, makeProxyRequest } = await createProxyServer({
     port: 0,
@@ -76,7 +91,11 @@ test("returns 502 when the proxy cannot connect to the backend", async () => {
 });
 
 test("passes through a 500 response from the backend", async () => {
-  await createBackendServer(3000, "backend error", 500);
+  await createBackendServer({
+    port: 3000,
+    body: "backend error",
+    statusCode: 500,
+  });
 
   const { makeProxyRequest } = await createProxyServer({
     port: 0,
@@ -93,12 +112,23 @@ test("passes through a 500 response from the backend", async () => {
 });
 
 async function createBackendServer(
-  port: number,
-  body: string,
-  statusCode = 200,
+  {
+    port,
+    body,
+    statusCode = 200,
+    headers = {},
+  }: {
+    port: number;
+    body: string;
+    statusCode?: number;
+    headers?: http.OutgoingHttpHeaders;
+  },
 ) {
   const server = http.createServer((_request, response) => {
     response.statusCode = statusCode;
+    for (const [headerName, headerValue] of Object.entries(headers)) {
+      response.setHeader(headerName, headerValue ?? "");
+    }
     response.end(body);
   });
 
@@ -164,7 +194,11 @@ function makeRequest({
   port: number;
   hostHeader: string;
 }) {
-  return new Promise<{ body: string; statusCode: number | undefined }>(
+  return new Promise<{
+    body: string;
+    headers: http.IncomingHttpHeaders;
+    statusCode: number | undefined;
+  }>(
     (resolve, reject) => {
       const request = http.request(
         {
@@ -188,6 +222,7 @@ function makeRequest({
           response.on("end", () => {
             resolve({
               body,
+              headers: response.headers,
               statusCode: response.statusCode,
             });
           });
