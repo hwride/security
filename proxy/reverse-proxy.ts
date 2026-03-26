@@ -1,51 +1,49 @@
 import { createServer } from "node:http";
 import * as http from "node:http";
 
-if (import.meta.main) {
-  boot();
-}
-
 /*
   This is a very simple test reverse proxy implementation.
  */
 
-const hostToDownstreamService: Record<string, string> = {
-  "example.com": "http://localhost:3000",
-  "example.test": "http://localhost:4000",
+type ProxyConfig = {
+  port?: number;
+  /** Mapping of Host header name to backend which should be sent those requests. */
+  backendByHost: Record<string, string>;
 };
 
-export function boot(opts: { port?: number } = {}) {
+export function boot(opts: ProxyConfig) {
   const port = opts.port ?? process.env.PROXY_PORT ?? 8080;
+  const { backendByHost } = opts;
 
   const server = createServer((proxyRequest, proxyResponse) => {
     const host = proxyRequest.headers.host;
 
     // Reject request if host is not in our proxy config.
-    if (host == null || hostToDownstreamService[host] == null) {
+    if (host == null || backendByHost[host] == null) {
       console.log(`Proxy request received - Host: ${host} - not found`);
       proxyResponse.statusCode = 502;
       proxyResponse.end("Bad Gateway");
       return;
     }
 
-    // We have a valid downstream service. Proxy the incoming request to the downstream service.
-    const downstreamService = hostToDownstreamService[host];
+    // We have a valid backend. Proxy the incoming request to the backend service.
+    const backendService = backendByHost[host];
     console.log(`Proxy request received - Host: ${host} - host config found`);
 
-    const upstreamUrl = new URL(proxyRequest.url ?? "/", downstreamService);
-    const downstreamRequest = http.request(
-      upstreamUrl,
+    const backendUrl = new URL(proxyRequest.url ?? "/", backendService);
+    const backendRequest = http.request(
+      backendUrl,
       {
         method: proxyRequest.method,
         headers: proxyRequest.headers,
       },
-      (downstreamResponse) => {
-        if (downstreamResponse.statusCode) {
+      (backendResponse) => {
+        if (backendResponse.statusCode) {
           proxyResponse.writeHead(
-            downstreamResponse.statusCode,
-            downstreamResponse.headers,
+            backendResponse.statusCode,
+            backendResponse.headers,
           );
-          downstreamResponse.pipe(proxyResponse);
+          backendResponse.pipe(proxyResponse);
         } else {
           proxyResponse.statusCode = 502;
           proxyResponse.end("Bad Gateway");
@@ -54,13 +52,13 @@ export function boot(opts: { port?: number } = {}) {
     );
 
     // Handle error.
-    downstreamRequest.on("error", (error) => {
+    backendRequest.on("error", (error) => {
       console.error(error);
       proxyResponse.statusCode = 502;
       proxyResponse.end("Bad Gateway");
     });
 
-    proxyRequest.pipe(downstreamRequest);
+    proxyRequest.pipe(backendRequest);
   });
 
   server.listen(port, () => {

@@ -17,7 +17,13 @@ test("proxies requests to the downstream service matched by host", async () => {
     createDownstreamServer(4000, "service on 4000"),
   );
 
-  const proxyServer = boot({ port: 0 });
+  const proxyServer = boot({
+    port: 0,
+    backendByHost: {
+      "example.com": "http://localhost:3000",
+      "example.test": "http://localhost:4000",
+    },
+  });
   servers.push(proxyServer);
 
   await Promise.all(servers.map(waitForListening));
