@@ -11,10 +11,10 @@ afterEach(async () => {
   servers = [];
 });
 
-test("proxies requests to the downstream service matched by host", async () => {
+test("proxies requests to the backend matched by host", async () => {
   servers.push(
-    createDownstreamServer(3000, "service on 3000"),
-    createDownstreamServer(4000, "service on 4000"),
+    createBackendServer(3000, "service on 3000"),
+    createBackendServer(4000, "service on 4000"),
   );
 
   const proxyServer = boot({
@@ -50,7 +50,7 @@ test("proxies requests to the downstream service matched by host", async () => {
 });
 
 test("proxies requests when the Host header includes the port", async () => {
-  servers.push(createDownstreamServer(3000, "service on 3000"));
+  servers.push(createBackendServer(3000, "service on 3000"));
 
   const proxyServer = boot({
     port: 0,
@@ -75,9 +75,56 @@ test("proxies requests when the Host header includes the port", async () => {
   expect(exampleDotComWithPortResponse.body).toBe("service on 3000");
 });
 
-function createDownstreamServer(port: number, body: string) {
+test("returns 502 when the proxy cannot connect to the backend", async () => {
+  // Assume nothing is listening on this high-numbered port.
+  const unavailablePort = 54321;
+
+  const proxyServer = boot({
+    port: 0,
+    backendByHostname: {
+      "example.com": `http://localhost:${unavailablePort}`,
+    },
+  });
+  servers.push(proxyServer);
+
+  await Promise.all(servers.map(waitForListening));
+
+  const proxyAddress = proxyServer.address();
+  if (proxyAddress == null || typeof proxyAddress === "string") {
+    throw new Error("Expected proxy server to listen on a TCP port");
+  }
+
+  const response = await makeRequest(proxyAddress.port, "example.com");
+  expect(response.statusCode).toBe(502);
+  expect(response.body).toBe("Bad Gateway");
+});
+
+test("passes through a 500 response from the backend", async () => {
+  servers.push(createBackendServer(3000, "backend error", 500));
+
+  const proxyServer = boot({
+    port: 0,
+    backendByHostname: {
+      "example.com": "http://localhost:3000",
+    },
+  });
+  servers.push(proxyServer);
+
+  await Promise.all(servers.map(waitForListening));
+
+  const proxyAddress = proxyServer.address();
+  if (proxyAddress == null || typeof proxyAddress === "string") {
+    throw new Error("Expected proxy server to listen on a TCP port");
+  }
+
+  const response = await makeRequest(proxyAddress.port, "example.com");
+  expect(response.statusCode).toBe(500);
+  expect(response.body).toBe("backend error");
+});
+
+function createBackendServer(port: number, body: string, statusCode = 200) {
   const server = http.createServer((_request, response) => {
-    response.statusCode = 200;
+    response.statusCode = statusCode;
     response.end(body);
   });
 
