@@ -63,4 +63,6 @@ export function boot(opts: { port?: number } = {}) {
   server.listen(port, () => {
     console.log(`Listening on http://localhost:${port}`);
   });
+
+  return server;
 }
