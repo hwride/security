@@ -5,7 +5,7 @@ import * as http from "node:http";
   This is a very simple test reverse proxy implementation.
  */
 
-type ProxyConfig = {
+export type ProxyConfig = {
   port?: number;
   /** Mapping of Host header name to backend which should be sent those requests. */
   backendByHostname: Record<string, string>;

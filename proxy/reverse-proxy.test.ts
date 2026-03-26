@@ -2,136 +2,131 @@ import * as http from "node:http";
 
 import { afterEach, expect, test } from "vitest";
 
-import { boot } from "./reverse-proxy.js";
+import { boot, ProxyConfig } from "./reverse-proxy.js";
 
-let servers: http.Server[] = [];
+let proxyServer: http.Server | null = null;
+let backendServers: http.Server[] = [];
 
 afterEach(async () => {
-  await Promise.all(servers.map(closeServer));
-  servers = [];
+  await Promise.all(backendServers.map(closeServer));
+  backendServers = [];
+
+  if (proxyServer != null) {
+    await closeServer(proxyServer);
+    proxyServer = null;
+  }
 });
 
 test("proxies requests to the backend matched by host", async () => {
-  servers.push(
-    createBackendServer(3000, "service on 3000"),
-    createBackendServer(4000, "service on 4000"),
-  );
+  await createBackendServer(3000, "service on 3000");
+  await createBackendServer(4000, "service on 4000");
 
-  const proxyServer = boot({
+  const { makeProxyRequest } = await createProxyServer({
     port: 0,
     backendByHostname: {
       "example.com": "http://localhost:3000",
       "example.test": "http://localhost:4000",
     },
   });
-  servers.push(proxyServer);
 
-  await Promise.all(servers.map(waitForListening));
-
-  const proxyAddress = proxyServer.address();
-  if (proxyAddress == null || typeof proxyAddress === "string") {
-    throw new Error("Expected proxy server to listen on a TCP port");
-  }
-  console.log(`Proxy listening on port ${proxyAddress.port}`);
-
-  const exampleDotComResponse = await makeRequest(
-    proxyAddress.port,
-    "example.com",
-  );
+  const exampleDotComResponse = await makeProxyRequest({
+    hostHeader: "example.com",
+  });
   expect(exampleDotComResponse.statusCode).toBe(200);
   expect(exampleDotComResponse.body).toBe("service on 3000");
 
-  const exampleDotTestResponse = await makeRequest(
-    proxyAddress.port,
-    "example.test",
-  );
+  const exampleDotTestResponse = await makeProxyRequest({
+    hostHeader: "example.test",
+  });
   expect(exampleDotTestResponse.statusCode).toBe(200);
   expect(exampleDotTestResponse.body).toBe("service on 4000");
 });
 
 test("proxies requests when the Host header includes the port", async () => {
-  servers.push(createBackendServer(3000, "service on 3000"));
+  await createBackendServer(3000, "service on 3000");
 
-  const proxyServer = boot({
+  const { proxyPort, makeProxyRequest } = await createProxyServer({
     port: 0,
     backendByHostname: {
       "example.com": "http://localhost:3000",
     },
   });
-  servers.push(proxyServer);
 
-  await Promise.all(servers.map(waitForListening));
-
-  const proxyAddress = proxyServer.address();
-  if (proxyAddress == null || typeof proxyAddress === "string") {
-    throw new Error("Expected proxy server to listen on a TCP port");
-  }
-
-  const exampleDotComWithPortResponse = await makeRequest(
-    proxyAddress.port,
-    `example.com:${proxyAddress.port}`,
-  );
+  const exampleDotComWithPortResponse = await makeProxyRequest({
+    hostHeader: `example.com:${proxyPort}`,
+  });
   expect(exampleDotComWithPortResponse.statusCode).toBe(200);
   expect(exampleDotComWithPortResponse.body).toBe("service on 3000");
 });
 
 test("returns 502 when the proxy cannot connect to the backend", async () => {
-  // Assume nothing is listening on this high-numbered port.
-  const unavailablePort = 54321;
-
-  const proxyServer = boot({
+  const { makeProxyRequest } = await createProxyServer({
     port: 0,
     backendByHostname: {
-      "example.com": `http://localhost:${unavailablePort}`,
+      // Assume nothing is listening on this high-numbered port.
+      "example.com": `http://localhost:54321`,
     },
   });
-  servers.push(proxyServer);
 
-  await Promise.all(servers.map(waitForListening));
-
-  const proxyAddress = proxyServer.address();
-  if (proxyAddress == null || typeof proxyAddress === "string") {
-    throw new Error("Expected proxy server to listen on a TCP port");
-  }
-
-  const response = await makeRequest(proxyAddress.port, "example.com");
+  const response = await makeProxyRequest({
+    hostHeader: "example.com",
+  });
   expect(response.statusCode).toBe(502);
   expect(response.body).toBe("Bad Gateway");
 });
 
 test("passes through a 500 response from the backend", async () => {
-  servers.push(createBackendServer(3000, "backend error", 500));
+  await createBackendServer(3000, "backend error", 500);
 
-  const proxyServer = boot({
+  const { makeProxyRequest } = await createProxyServer({
     port: 0,
     backendByHostname: {
       "example.com": "http://localhost:3000",
     },
   });
-  servers.push(proxyServer);
 
-  await Promise.all(servers.map(waitForListening));
+  const response = await makeProxyRequest({
+    hostHeader: "example.com",
+  });
+  expect(response.statusCode).toBe(500);
+  expect(response.body).toBe("backend error");
+});
+
+async function createBackendServer(
+  port: number,
+  body: string,
+  statusCode = 200,
+) {
+  const server = http.createServer((_request, response) => {
+    response.statusCode = statusCode;
+    response.end(body);
+  });
+
+  backendServers.push(server);
+  server.listen(port, () => {
+    console.log(`Server listening on port ${port}`);
+  });
+  await waitForListening(server);
+}
+
+async function createProxyServer(config: ProxyConfig) {
+  proxyServer = boot(config);
+  await waitForListening(proxyServer);
 
   const proxyAddress = proxyServer.address();
   if (proxyAddress == null || typeof proxyAddress === "string") {
     throw new Error("Expected proxy server to listen on a TCP port");
   }
 
-  const response = await makeRequest(proxyAddress.port, "example.com");
-  expect(response.statusCode).toBe(500);
-  expect(response.body).toBe("backend error");
-});
-
-function createBackendServer(port: number, body: string, statusCode = 200) {
-  const server = http.createServer((_request, response) => {
-    response.statusCode = statusCode;
-    response.end(body);
-  });
-
-  server.listen(port, () => {
-    console.log(`Server listening on port ${port}`);
-  });
-  return server;
+  return {
+    proxyPort: proxyAddress.port,
+    proxyServer,
+    makeProxyRequest: ({ hostHeader }: { hostHeader: string }) =>
+      makeRequest({
+        port: proxyAddress.port,
+        hostHeader,
+      }),
+  };
 }
 
 function waitForListening(server: http.Server) {
@@ -162,7 +157,13 @@ function closeServer(server: http.Server) {
   });
 }
 
-function makeRequest(port: number, host: string) {
+function makeRequest({
+  port,
+  hostHeader,
+}: {
+  port: number;
+  hostHeader: string;
+}) {
   return new Promise<{ body: string; statusCode: number | undefined }>(
     (resolve, reject) => {
       const request = http.request(
@@ -174,7 +175,7 @@ function makeRequest(port: number, host: string) {
           method: "GET",
           headers: {
             // HTTP Host header.
-            host,
+            host: hostHeader,
           },
         },
         (response) => {
