@@ -11,9 +11,9 @@ type ProxyConfig = {
   backendByHost: Record<string, string>;
 };
 
-export function boot(opts: ProxyConfig) {
-  const port = opts.port ?? process.env.PROXY_PORT ?? 8080;
-  const { backendByHost } = opts;
+export function boot(opts?: ProxyConfig) {
+  const port = opts?.port ?? process.env.PROXY_PORT ?? 8080;
+  const backendByHost: Record<string, string> = opts?.backendByHost ?? {};
 
   const server = createServer((proxyRequest, proxyResponse) => {
     const host = proxyRequest.headers.host;

@@ -1,7 +1,7 @@
 {
   "type": "module",
   "scripts": {
-    "dev": "node --watch reverse-proxy.ts",
+    "dev": "node --watch reverse-proxy-dev.ts",
     "test": "vitest run",
     "types": "tsc --noEmit"
   },
