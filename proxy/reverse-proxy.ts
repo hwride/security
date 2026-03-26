@@ -8,27 +8,31 @@ import * as http from "node:http";
 type ProxyConfig = {
   port?: number;
   /** Mapping of Host header name to backend which should be sent those requests. */
-  backendByHost: Record<string, string>;
+  backendByHostname: Record<string, string>;
 };
 
-export function boot(opts?: ProxyConfig) {
-  const port = opts?.port ?? process.env.PROXY_PORT ?? 8080;
-  const backendByHost: Record<string, string> = opts?.backendByHost ?? {};
+export function boot(opts: ProxyConfig) {
+  const port = opts.port ?? process.env.PROXY_PORT ?? 8080;
+  const { backendByHostname } = opts;
 
   const server = createServer((proxyRequest, proxyResponse) => {
-    const host = proxyRequest.headers.host;
+    const hostHeader = proxyRequest.headers.host;
+    const hostname =
+      hostHeader == null ? null : getHostnameFromHostHeader(hostHeader);
 
     // Reject request if host is not in our proxy config.
-    if (host == null || backendByHost[host] == null) {
-      console.log(`Proxy request received - Host: ${host} - not found`);
+    if (hostname == null || backendByHostname[hostname] == null) {
+      console.log(`Proxy request received - Host: ${hostHeader} - not found`);
       proxyResponse.statusCode = 502;
       proxyResponse.end("Bad Gateway");
       return;
     }
 
     // We have a valid backend. Proxy the incoming request to the backend service.
-    const backendService = backendByHost[host];
-    console.log(`Proxy request received - Host: ${host} - host config found`);
+    const backendService = backendByHostname[hostname];
+    console.log(
+      `Proxy request received - Host: ${hostHeader} - host config found`,
+    );
 
     const backendUrl = new URL(proxyRequest.url ?? "/", backendService);
     const backendRequest = http.request(
@@ -66,4 +70,12 @@ export function boot(opts?: ProxyConfig) {
   });
 
   return server;
+}
+
+function getHostnameFromHostHeader(hostHeader: string) {
+  try {
+    return new URL(`http://${hostHeader}`).hostname;
+  } catch {
+    return null;
+  }
 }

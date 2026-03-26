@@ -19,7 +19,7 @@ test("proxies requests to the downstream service matched by host", async () => {
 
   const proxyServer = boot({
     port: 0,
-    backendByHost: {
+    backendByHostname: {
       "example.com": "http://localhost:3000",
       "example.test": "http://localhost:4000",
     },
@@ -47,6 +47,32 @@ test("proxies requests to the downstream service matched by host", async () => {
   );
   expect(exampleDotTestResponse.statusCode).toBe(200);
   expect(exampleDotTestResponse.body).toBe("service on 4000");
+});
+
+test("proxies requests when the Host header includes the port", async () => {
+  servers.push(createDownstreamServer(3000, "service on 3000"));
+
+  const proxyServer = boot({
+    port: 0,
+    backendByHostname: {
+      "example.com": "http://localhost:3000",
+    },
+  });
+  servers.push(proxyServer);
+
+  await Promise.all(servers.map(waitForListening));
+
+  const proxyAddress = proxyServer.address();
+  if (proxyAddress == null || typeof proxyAddress === "string") {
+    throw new Error("Expected proxy server to listen on a TCP port");
+  }
+
+  const exampleDotComWithPortResponse = await makeRequest(
+    proxyAddress.port,
+    `example.com:${proxyAddress.port}`,
+  );
+  expect(exampleDotComWithPortResponse.statusCode).toBe(200);
+  expect(exampleDotComWithPortResponse.body).toBe("service on 3000");
 });
 
 function createDownstreamServer(port: number, body: string) {
