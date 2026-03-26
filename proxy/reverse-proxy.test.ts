@@ -22,9 +22,9 @@ test("proxies requests to the backend matched by host", async () => {
     port: 3000,
     body: "service on 3000",
     headers: {
-      "content-type": "text/plain",
-      "set-cookie": "session=abc123; HttpOnly",
-      "x-backend-name": "service-on-3000",
+      "Content-Type": "text/plain",
+      "Set-Cookie": "session=abc123; HttpOnly",
+      "X-Backend-Name": "service-on-3000",
     },
   });
   await createBackendServer({ port: 4000, body: "service on 4000" });
@@ -38,7 +38,9 @@ test("proxies requests to the backend matched by host", async () => {
   });
 
   const exampleDotComResponse = await makeProxyRequest({
-    hostHeader: "example.com",
+    headers: {
+      Host: "example.com",
+    },
   });
   expect(exampleDotComResponse.statusCode).toBe(200);
   expect(exampleDotComResponse.body).toBe("service on 3000");
@@ -51,7 +53,9 @@ test("proxies requests to the backend matched by host", async () => {
   );
 
   const exampleDotTestResponse = await makeProxyRequest({
-    hostHeader: "example.test",
+    headers: {
+      Host: "example.test",
+    },
   });
   expect(exampleDotTestResponse.statusCode).toBe(200);
   expect(exampleDotTestResponse.body).toBe("service on 4000");
@@ -68,7 +72,9 @@ test("proxies requests when the Host header includes the port", async () => {
   });
 
   const exampleDotComWithPortResponse = await makeProxyRequest({
-    hostHeader: `example.com:${proxyPort}`,
+    headers: {
+      Host: `example.com:${proxyPort}`,
+    },
   });
   expect(exampleDotComWithPortResponse.statusCode).toBe(200);
   expect(exampleDotComWithPortResponse.body).toBe("service on 3000");
@@ -84,7 +90,9 @@ test("returns 502 when the proxy cannot connect to the backend", async () => {
   });
 
   const response = await makeProxyRequest({
-    hostHeader: "example.com",
+    headers: {
+      Host: "example.com",
+    },
   });
   expect(response.statusCode).toBe(502);
   expect(response.body).toBe("Bad Gateway");
@@ -105,26 +113,113 @@ test("passes through a 500 response from the backend", async () => {
   });
 
   const response = await makeProxyRequest({
-    hostHeader: "example.com",
+    headers: {
+      Host: "example.com",
+    },
   });
   expect(response.statusCode).toBe(500);
   expect(response.body).toBe("backend error");
 });
 
-async function createBackendServer(
-  {
-    port,
-    body,
-    statusCode = 200,
-    headers = {},
-  }: {
-    port: number;
-    body: string;
-    statusCode?: number;
-    headers?: http.OutgoingHttpHeaders;
-  },
-) {
-  const server = http.createServer((_request, response) => {
+test("client method, headers and body are sent to backend", async () => {
+  await createBackendServer({
+    port: 3000,
+    handleRequest: async (request, response) => {
+      if (request.method !== "POST") {
+        response.statusCode = 405;
+        response.end("Expected POST");
+        return;
+      }
+
+      if (request.headers.cookie !== "session=abc123") {
+        response.statusCode = 400;
+        response.end("Missing cookie");
+        return;
+      }
+
+      const requestBody = await readRequestBody(request);
+      response.statusCode = 200;
+      response.setHeader("Content-Type", "text/plain");
+      response.end(`${requestBody} backend modified!`);
+    },
+  });
+
+  const { makeProxyRequest } = await createProxyServer({
+    port: 0,
+    backendByHostname: {
+      "example.com": "http://localhost:3000",
+    },
+  });
+
+  const response = await makeProxyRequest({
+    method: "POST",
+    headers: {
+      Host: "example.com",
+      Cookie: "session=abc123",
+    },
+    body: "hello from client",
+  });
+  expect(response.statusCode).toBe(200);
+  expect(response.body).toBe("hello from client backend modified!");
+});
+
+test("one client can make requests to two different paths on the same backend", async () => {
+  await createBackendServer({
+    port: 3000,
+    handleRequest: (request, response) => {
+      response.statusCode = 200;
+      response.end(`backend saw path ${request.url}`);
+    },
+  });
+
+  const { makeProxyRequest } = await createProxyServer({
+    port: 0,
+    backendByHostname: {
+      "example.com": "http://localhost:3000",
+    },
+  });
+
+  const firstResponse = await makeProxyRequest({
+    headers: {
+      Host: "example.com",
+    },
+    path: "/first-path",
+  });
+  expect(firstResponse.statusCode).toBe(200);
+  expect(firstResponse.body).toBe("backend saw path /first-path");
+
+  const secondResponse = await makeProxyRequest({
+    headers: {
+      Host: "example.com",
+    },
+    path: "/second-path",
+  });
+  expect(secondResponse.statusCode).toBe(200);
+  expect(secondResponse.body).toBe("backend saw path /second-path");
+});
+
+async function createBackendServer({
+  port,
+  body,
+  statusCode = 200,
+  headers = {},
+  handleRequest,
+}: {
+  port: number;
+  body: string;
+  statusCode?: number;
+  headers?: http.OutgoingHttpHeaders;
+  handleRequest?: (
+    request: http.IncomingMessage,
+    response: http.ServerResponse,
+  ) => void | Promise<void>;
+}) {
+  const server = http.createServer(async (request, response) => {
+    if (handleRequest != null) {
+      await handleRequest(request, response);
+      return;
+    }
+
     response.statusCode = statusCode;
     for (const [headerName, headerValue] of Object.entries(headers)) {
       response.setHeader(headerName, headerValue ?? "");
@@ -151,10 +246,23 @@ async function createProxyServer(config: ProxyConfig) {
   return {
     proxyPort: proxyAddress.port,
     proxyServer,
-    makeProxyRequest: ({ hostHeader }: { hostHeader: string }) =>
+    makeProxyRequest: ({
+      method = "GET",
+      headers = {},
+      body,
+      path = "/",
+    }: {
+      method?: string;
+      headers?: http.OutgoingHttpHeaders;
+      body?: string;
+      path?: string;
+    }) =>
       makeRequest({
+        body,
+        headers,
+        method,
+        path,
         port: proxyAddress.port,
-        hostHeader,
       }),
   };
 }
@@ -188,49 +296,68 @@ function closeServer(server: http.Server) {
 }
 
 function makeRequest({
+  body,
+  headers = {},
+  method = "GET",
+  path = "/",
   port,
-  hostHeader,
 }: {
+  body?: string;
+  headers?: http.OutgoingHttpHeaders;
+  method?: string;
+  path?: string;
   port: number;
-  hostHeader: string;
 }) {
   return new Promise<{
     body: string;
     headers: http.IncomingHttpHeaders;
     statusCode: number | undefined;
-  }>(
-    (resolve, reject) => {
-      const request = http.request(
-        {
-          // Which IP to open the TCP connection to.
-          hostname: "127.0.0.1",
-          port,
-          path: "/",
-          method: "GET",
-          headers: {
-            // HTTP Host header.
-            host: hostHeader,
-          },
-        },
-        (response) => {
-          let body = "";
+  }>((resolve, reject) => {
+    const request = http.request(
+      {
+        // Which IP to open the TCP connection to.
+        hostname: "127.0.0.1",
+        method,
+        port,
+        path,
+        headers,
+      },
+      (response) => {
+        let body = "";
 
-          response.setEncoding("utf8");
-          response.on("data", (chunk) => {
-            body += chunk;
+        response.setEncoding("utf8");
+        response.on("data", (chunk) => {
+          body += chunk;
+        });
+        response.on("end", () => {
+          resolve({
+            body,
+            headers: response.headers,
+            statusCode: response.statusCode,
           });
-          response.on("end", () => {
-            resolve({
-              body,
-              headers: response.headers,
-              statusCode: response.statusCode,
-            });
-          });
-        },
-      );
+        });
+      },
+    );
 
-      request.on("error", reject);
-      request.end();
-    },
-  );
+    request.on("error", reject);
+    if (body != null) {
+      request.write(body);
+    }
+    request.end();
+  });
+}
+
+function readRequestBody(request: http.IncomingMessage) {
+  return new Promise<string>((resolve, reject) => {
+    let body = "";
+
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => {
+      body += chunk;
+    });
+    request.on("end", () => {
+      resolve(body);
+    });
+    request.on("error", reject);
+  });
 }
