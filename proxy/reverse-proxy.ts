@@ -42,10 +42,12 @@ export function boot(opts: ProxyConfig) {
     delete forwardedHeaders["x-forwarded-for"];
     delete forwardedHeaders["x-forwarded-host"];
     delete forwardedHeaders["x-forwarded-proto"];
-    delete forwardedHeaders.forwarded;
+    delete forwardedHeaders["forwarded"];
 
-    forwardedHeaders["x-forwarded-for"] =
-      proxyRequest.socket.remoteAddress ?? "";
+    const remoteAddress = proxyRequest.socket.remoteAddress;
+    if (remoteAddress != null) {
+      forwardedHeaders["x-forwarded-for"] = remoteAddress;
+    }
     forwardedHeaders["x-forwarded-host"] = hostHeader;
     forwardedHeaders["x-forwarded-proto"] = "http";
 
