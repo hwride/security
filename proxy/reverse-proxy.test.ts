@@ -1,6 +1,6 @@
 import * as http from "node:http";
 
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 
 import { boot, ProxyConfig } from "./reverse-proxy.js";
 
@@ -31,9 +31,9 @@ test("proxies requests to the backend matched by host", async () => {
 
   const { makeProxyRequest } = await createProxyServer({
     port: 0,
-    backendByHostname: {
-      "example.com": "http://localhost:3000",
-      "example.test": "http://localhost:4000",
+    backends: {
+      "example.com": { servers: [{ url: "http://localhost:3000" }] },
+      "example.test": { servers: [{ url: "http://localhost:4000" }] },
     },
   });
 
@@ -66,8 +66,8 @@ test("proxies requests when the Host header includes the port", async () => {
 
   const { proxyPort, makeProxyRequest } = await createProxyServer({
     port: 0,
-    backendByHostname: {
-      "example.com": "http://localhost:3000",
+    backends: {
+      "example.com": { servers: [{ url: "http://localhost:3000" }] },
     },
   });
 
@@ -83,9 +83,9 @@ test("proxies requests when the Host header includes the port", async () => {
 test("returns 502 when the proxy cannot connect to the backend", async () => {
   const { makeProxyRequest } = await createProxyServer({
     port: 0,
-    backendByHostname: {
+    backends: {
       // Assume nothing is listening on this high-numbered port.
-      "example.com": `http://localhost:54321`,
+      "example.com": { servers: [{ url: `http://localhost:54321` }] },
     },
   });
 
@@ -107,8 +107,8 @@ test("passes through a 500 response from the backend", async () => {
 
   const { makeProxyRequest } = await createProxyServer({
     port: 0,
-    backendByHostname: {
-      "example.com": "http://localhost:3000",
+    backends: {
+      "example.com": { servers: [{ url: "http://localhost:3000" }] },
     },
   });
 
@@ -146,8 +146,8 @@ test("client method, headers and body are sent to backend", async () => {
 
   const { makeProxyRequest } = await createProxyServer({
     port: 0,
-    backendByHostname: {
-      "example.com": "http://localhost:3000",
+    backends: {
+      "example.com": { servers: [{ url: "http://localhost:3000" }] },
     },
   });
 
@@ -184,8 +184,8 @@ test("replaces forwarding headers and preserves other headers", async () => {
 
   const { makeProxyRequest } = await createProxyServer({
     port: 0,
-    backendByHostname: {
-      "example.com": "http://localhost:3000",
+    backends: {
+      "example.com": { servers: [{ url: "http://localhost:3000" }] },
     },
   });
 
@@ -226,8 +226,8 @@ test("one client can make requests to two different paths on the same backend", 
 
   const { makeProxyRequest } = await createProxyServer({
     port: 0,
-    backendByHostname: {
-      "example.com": "http://localhost:3000",
+    backends: {
+      "example.com": { servers: [{ url: "http://localhost:3000" }] },
     },
   });
 
@@ -250,6 +250,67 @@ test("one client can make requests to two different paths on the same backend", 
   expect(secondResponse.body).toBe("backend saw path /second-path");
 });
 
+test("returns 502 when a backend has no servers", async () => {
+  const { makeProxyRequest } = await createProxyServer({
+    port: 0,
+    backends: {
+      "example.com": { servers: [] },
+    },
+  });
+
+  const response = await makeProxyRequest({
+    headers: {
+      Host: "example.com",
+    },
+  });
+
+  expect(response.statusCode).toBe(502);
+  expect(response.body).toBe("Bad Gateway");
+});
+
+test("supports random load balancing policy", async () => {
+  await createBackendServer({ port: 3000, body: "service on 3000" });
+  await createBackendServer({ port: 4000, body: "service on 4000" });
+
+  const randomSpy = vi
+    .spyOn(Math, "random")
+    .mockReturnValueOnce(0.01)
+    .mockReturnValueOnce(0.99);
+
+  try {
+    const { makeProxyRequest } = await createProxyServer({
+      port: 0,
+      backends: {
+        "example.com": {
+          servers: [
+            { url: "http://localhost:3000" },
+            { url: "http://localhost:4000" },
+          ],
+          policy: "random",
+        },
+      },
+    });
+
+    const firstResponse = await makeProxyRequest({
+      headers: {
+        Host: "example.com",
+      },
+    });
+    expect(firstResponse.statusCode).toBe(200);
+    expect(firstResponse.body).toBe("service on 3000");
+
+    const secondResponse = await makeProxyRequest({
+      headers: {
+        Host: "example.com",
+      },
+    });
+    expect(secondResponse.statusCode).toBe(200);
+    expect(secondResponse.body).toBe("service on 4000");
+  } finally {
+    randomSpy.mockRestore();
+  }
+});
+
 async function createBackendServer({
   port,
   body,
@@ -258,7 +319,7 @@ async function createBackendServer({
   handleRequest,
 }: {
   port: number;
-  body: string;
+  body?: string;
   statusCode?: number;
   headers?: http.OutgoingHttpHeaders;
   handleRequest?: (
@@ -276,7 +337,7 @@ async function createBackendServer({
     for (const [headerName, headerValue] of Object.entries(headers)) {
       response.setHeader(headerName, headerValue ?? "");
     }
-    response.end(body);
+    response.end(body ?? "");
   });
 
   backendServers.push(server);

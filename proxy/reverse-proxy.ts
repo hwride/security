@@ -10,12 +10,21 @@ import * as http from "node:http";
 export type ProxyConfig = {
   port?: number;
   /** Mapping of hostname to backend which should be sent those requests. */
-  backendByHostname: Record<string, string>;
+  backends: Record<string, BackendConfig>;
+};
+
+export type BackendConfig = {
+  servers: ServerConfig[];
+  policy?: "random";
+};
+
+export type ServerConfig = {
+  url: string;
 };
 
 export function boot(opts: ProxyConfig) {
   const port = opts.port ?? process.env.PROXY_PORT ?? 8080;
-  const { backendByHostname } = opts;
+  const { backends } = opts;
 
   const server = createServer((proxyRequest, proxyResponse) => {
     const hostHeader = proxyRequest.headers.host;
@@ -23,7 +32,8 @@ export function boot(opts: ProxyConfig) {
       hostHeader == null ? null : getHostnameFromHostHeader(hostHeader);
 
     // Reject request if host is not in our proxy config.
-    if (hostname == null || backendByHostname[hostname] == null) {
+    const backendConfig = hostname == null ? null : backends[hostname];
+    if (backendConfig == null) {
       console.log(`Proxy request received - Host: ${hostHeader} - not found`);
       proxyResponse.statusCode = 502;
       proxyResponse.end("Bad Gateway");
@@ -31,7 +41,17 @@ export function boot(opts: ProxyConfig) {
     }
 
     // We have a valid backend. Proxy the incoming request to the backend service.
-    const backendService = backendByHostname[hostname];
+    const selectedServer = selectServer(backendConfig);
+    if (selectedServer == null) {
+      console.log(
+        `Proxy request received - Host: ${hostHeader} - no servers configured`,
+      );
+      proxyResponse.statusCode = 502;
+      proxyResponse.end("Bad Gateway");
+      return;
+    }
+
+    const backendService = selectedServer.url;
     console.log(
       `Proxy request received - Host: ${hostHeader} - host config found`,
     );
@@ -95,4 +115,17 @@ function getHostnameFromHostHeader(hostHeader: string) {
   } catch {
     return null;
   }
+}
+
+function selectServer(backendConfig: BackendConfig) {
+  if (backendConfig.servers.length === 0) {
+    return null;
+  }
+
+  if (backendConfig.policy === "random") {
+    const serverIndex = Math.floor(Math.random() * backendConfig.servers.length);
+    return backendConfig.servers[serverIndex] ?? null;
+  }
+
+  return backendConfig.servers[0] ?? null;
 }
