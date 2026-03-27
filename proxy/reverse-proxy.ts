@@ -9,6 +9,12 @@ import * as http from "node:http";
 
 export type ProxyConfig = {
   port?: number;
+  /**
+   * Timeout in milliseconds for requests to backend servers.
+   * When exceeded, the proxy returns 504 Gateway Timeout.
+   * Defaults to 30 seconds.
+   */
+  backendRequestTimeoutMs?: number;
   /** Different backends this proxy can send requests to. Key is the hostname that should be proxied. */
   backends: Record<string, BackendConfig>;
 };
@@ -27,9 +33,13 @@ export type ServerConfig = {
   url: string;
 };
 
+const DEFAULT_BACKEND_REQUEST_TIMEOUT_MS = 30_000;
+
 export function boot(opts: ProxyConfig) {
   const port = opts.port ?? process.env.PROXY_PORT ?? 8080;
   const { backends } = opts;
+  const backendRequestTimeoutMs =
+    opts.backendRequestTimeoutMs ?? DEFAULT_BACKEND_REQUEST_TIMEOUT_MS;
 
   const server = createServer((proxyRequest, proxyResponse) => {
     const hostHeader = proxyRequest.headers.host;
@@ -76,6 +86,18 @@ export function boot(opts: ProxyConfig) {
     forwardedHeaders["x-forwarded-proto"] = "http";
 
     const backendUrl = new URL(proxyRequest.url ?? "/", backendService);
+    let responseSent = false;
+
+    const sendGatewayError = (statusCode: number, message: string) => {
+      if (responseSent || proxyResponse.headersSent || proxyResponse.writableEnded) {
+        return;
+      }
+
+      responseSent = true;
+      proxyResponse.statusCode = statusCode;
+      proxyResponse.end(message);
+    };
+
     const backendRequest = http.request(
       backendUrl,
       {
@@ -84,23 +106,27 @@ export function boot(opts: ProxyConfig) {
       },
       (backendResponse) => {
         if (backendResponse.statusCode) {
+          responseSent = true;
           proxyResponse.writeHead(
             backendResponse.statusCode,
             backendResponse.headers,
           );
           backendResponse.pipe(proxyResponse);
         } else {
-          proxyResponse.statusCode = 502;
-          proxyResponse.end("Bad Gateway");
+          sendGatewayError(502, "Bad Gateway");
         }
       },
     );
 
+    backendRequest.setTimeout(backendRequestTimeoutMs, () => {
+      backendRequest.destroy(new Error("Backend request timed out"));
+      sendGatewayError(504, "Gateway Timeout");
+    });
+
     // Handle error.
     backendRequest.on("error", (error) => {
       console.error(error);
-      proxyResponse.statusCode = 502;
-      proxyResponse.end("Bad Gateway");
+      sendGatewayError(502, "Bad Gateway");
     });
 
     proxyRequest.pipe(backendRequest);

@@ -151,6 +151,60 @@ test("returns 502 when the proxy cannot connect to the backend", async () => {
   expect(response.body).toBe("Bad Gateway");
 });
 
+
+test("uses 30s backend timeout by default", async () => {
+  await createBackendServer({ port: 3000, body: "service on 3000" });
+
+  const timeoutSpy = vi.spyOn(http.ClientRequest.prototype, "setTimeout");
+
+  try {
+    const { makeProxyRequest } = await createProxyServer({
+      port: 0,
+      backends: {
+        "example.com": { servers: [{ url: "http://localhost:3000" }] },
+      },
+    });
+
+    const response = await makeProxyRequest({
+      headers: {
+        Host: "example.com",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(timeoutSpy).toHaveBeenCalledWith(30_000, expect.any(Function));
+  } finally {
+    timeoutSpy.mockRestore();
+  }
+});
+test("returns 504 when backend response exceeds configured timeout", async () => {
+  await createBackendServer({
+    port: 3000,
+    handleRequest: async (_request, response) => {
+      await delay(100);
+      response.statusCode = 200;
+      response.end("slow backend response");
+    },
+  });
+
+  const { makeProxyRequest } = await createProxyServer({
+    port: 0,
+    backendRequestTimeoutMs: 10,
+    backends: {
+      "example.com": { servers: [{ url: "http://localhost:3000" }] },
+    },
+  });
+
+  const response = await makeProxyRequest({
+    headers: {
+      Host: "example.com",
+    },
+  });
+
+  expect(response.statusCode).toBe(504);
+  expect(response.body).toBe("Gateway Timeout");
+});
+
 test("passes through a 500 response from the backend", async () => {
   await createBackendServer({
     port: 3000,
@@ -461,6 +515,13 @@ function closeServer(server: http.Server) {
 
       resolve();
     });
+  });
+}
+
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
   });
 }
 
