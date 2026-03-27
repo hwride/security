@@ -3,6 +3,8 @@ import * as http from "node:http";
 
 /*
   This is a very simple test reverse proxy implementation.
+
+  It works by proxying incoming requests to different backends according to their Host header.
  */
 
 export type ProxyConfig = {
