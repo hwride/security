@@ -120,7 +120,9 @@ export function boot(opts: ProxyConfig) {
       },
     );
 
+    // Timeout the request.
     backendRequest.setTimeout(backendRequestTimeoutMs, () => {
+      // Destroy closes the underlying TCP connection and releases the socket.
       backendRequest.destroy(new Error("Backend request timed out"));
       sendGatewayError(504, "Gateway Timeout");
     });
