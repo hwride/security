@@ -80,6 +80,59 @@ test("proxies requests when the Host header includes the port", async () => {
   expect(exampleDotComWithPortResponse.body).toBe("service on 3000");
 });
 
+test("returns 400 when the Host header is missing", async () => {
+  const { makeProxyRequest } = await createProxyServer({
+    port: 0,
+    backends: {
+      "example.com": { servers: [{ url: "http://localhost:3000" }] },
+    },
+  });
+
+  const response = await makeProxyRequest({
+    // Stop Node setting a Host header for this test.
+    setHost: false,
+  });
+
+  expect(response.statusCode).toBe(400);
+  expect(response.body).toBe("");
+});
+
+test("returns 400 when the Host header is malformed", async () => {
+  const { makeProxyRequest } = await createProxyServer({
+    port: 0,
+    backends: {
+      "example.com": { servers: [{ url: "http://localhost:3000" }] },
+    },
+  });
+
+  const response = await makeProxyRequest({
+    headers: {
+      Host: "exa mple.com",
+    },
+  });
+
+  expect(response.statusCode).toBe(400);
+  expect(response.body).toBe("Bad Request");
+});
+
+test("returns 502 when the Host header does not match a configured backend", async () => {
+  const { makeProxyRequest } = await createProxyServer({
+    port: 0,
+    backends: {
+      "example.com": { servers: [{ url: "http://localhost:3000" }] },
+    },
+  });
+
+  const response = await makeProxyRequest({
+    headers: {
+      Host: "unknown.example",
+    },
+  });
+
+  expect(response.statusCode).toBe(502);
+  expect(response.body).toBe("Bad Gateway");
+});
+
 test("returns 502 when the proxy cannot connect to the backend", async () => {
   const { makeProxyRequest } = await createProxyServer({
     port: 0,
@@ -286,7 +339,7 @@ test("supports random load balancing policy", async () => {
             { url: "http://localhost:3000" },
             { url: "http://localhost:4000" },
           ],
-          policy: "random",
+          loadBalancingPolicy: "random",
         },
       },
     });
@@ -364,11 +417,13 @@ async function createProxyServer(config: ProxyConfig) {
       headers = {},
       body,
       path = "/",
+      setHost = true,
     }: {
       method?: string;
       headers?: http.OutgoingHttpHeaders;
       body?: string;
       path?: string;
+      setHost?: boolean;
     }) =>
       makeRequest({
         body,
@@ -376,6 +431,7 @@ async function createProxyServer(config: ProxyConfig) {
         method,
         path,
         port: proxyAddress.port,
+        setHost,
       }),
   };
 }
@@ -414,12 +470,14 @@ function makeRequest({
   method = "GET",
   path = "/",
   port,
+  setHost = true,
 }: {
   body?: string;
   headers?: http.OutgoingHttpHeaders;
   method?: string;
   path?: string;
   port: number;
+  setHost?: boolean;
 }) {
   return new Promise<{
     body: string;
@@ -434,6 +492,7 @@ function makeRequest({
         port,
         path,
         headers,
+        setHost,
       },
       (response) => {
         let body = "";

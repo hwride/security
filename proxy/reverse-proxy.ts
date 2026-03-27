@@ -9,13 +9,18 @@ import * as http from "node:http";
 
 export type ProxyConfig = {
   port?: number;
-  /** Mapping of hostname to backend which should be sent those requests. */
+  /** Different backends this proxy can send requests to. Key is the hostname that should be proxied. */
   backends: Record<string, BackendConfig>;
 };
 
 export type BackendConfig = {
+  /** Servers that will receive requests for this backend. */
   servers: ServerConfig[];
-  policy?: "random";
+  /**
+   * Policy to use when load balancing between multiple servers.
+   * - random: Choose a random server.
+   */
+  loadBalancingPolicy?: "random";
 };
 
 export type ServerConfig = {
@@ -31,21 +36,20 @@ export function boot(opts: ProxyConfig) {
     const hostname =
       hostHeader == null ? null : getHostnameFromHostHeader(hostHeader);
 
-    // Reject request if host is not in our proxy config.
-    const backendConfig = hostname == null ? null : backends[hostname];
-    if (backendConfig == null) {
-      console.log(`Proxy request received - Host: ${hostHeader} - not found`);
-      proxyResponse.statusCode = 502;
-      proxyResponse.end("Bad Gateway");
+    if (hostHeader == null || hostname == null) {
+      console.error(
+        `Proxy request received - Host: ${hostHeader} - invalid host`,
+      );
+      proxyResponse.statusCode = 400;
+      proxyResponse.end("Bad Request");
       return;
     }
 
-    // We have a valid backend. Proxy the incoming request to the backend service.
-    const selectedServer = selectServer(backendConfig);
+    const selectedServer = selectServer({
+      backends,
+      hostname,
+    });
     if (selectedServer == null) {
-      console.log(
-        `Proxy request received - Host: ${hostHeader} - no servers configured`,
-      );
       proxyResponse.statusCode = 502;
       proxyResponse.end("Bad Gateway");
       return;
@@ -117,13 +121,32 @@ function getHostnameFromHostHeader(hostHeader: string) {
   }
 }
 
-function selectServer(backendConfig: BackendConfig) {
-  if (backendConfig.servers.length === 0) {
+function selectServer({
+  backends,
+  hostname,
+}: {
+  backends: Record<string, BackendConfig>;
+  hostname: string;
+}) {
+  const backendConfig = backends[hostname];
+  if (backendConfig == null) {
+    console.error(
+      `Proxy request received - hostname: ${hostname} - no backend configured`,
+    );
     return null;
   }
 
-  if (backendConfig.policy === "random") {
-    const serverIndex = Math.floor(Math.random() * backendConfig.servers.length);
+  if (backendConfig.servers.length === 0) {
+    console.error(
+      `Proxy request received - hostname: ${hostname} - no servers configured`,
+    );
+    return null;
+  }
+
+  if (backendConfig.loadBalancingPolicy === "random") {
+    const serverIndex = Math.floor(
+      Math.random() * backendConfig.servers.length,
+    );
     return backendConfig.servers[serverIndex] ?? null;
   }
 
