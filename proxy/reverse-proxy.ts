@@ -7,7 +7,7 @@ import * as http from "node:http";
 
 export type ProxyConfig = {
   port?: number;
-  /** Mapping of Host header name to backend which should be sent those requests. */
+  /** Mapping of hostname to backend which should be sent those requests. */
   backendByHostname: Record<string, string>;
 };
 
