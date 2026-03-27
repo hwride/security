@@ -88,6 +88,7 @@ export function boot(opts: ProxyConfig) {
     forwardedHeaders["x-forwarded-proto"] = "http";
 
     const backendUrl = new URL(proxyRequest.url ?? "/", backendService);
+    // Prevent multiple writes when timeout, error, and response events race.
     let responseSent = false;
 
     const sendGatewayError = (statusCode: number, message: string) => {
