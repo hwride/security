@@ -163,6 +163,58 @@ test("client method, headers and body are sent to backend", async () => {
   expect(response.body).toBe("hello from client backend modified!");
 });
 
+test("replaces forwarding headers and preserves other headers", async () => {
+  await createBackendServer({
+    port: 3000,
+    body: "unused",
+    handleRequest: (request, response) => {
+      response.statusCode = 200;
+      response.setHeader("Content-Type", "application/json");
+      response.end(
+        JSON.stringify({
+          forwarded: request.headers.forwarded,
+          xForwardedFor: request.headers["x-forwarded-for"],
+          xForwardedHost: request.headers["x-forwarded-host"],
+          xForwardedProto: request.headers["x-forwarded-proto"],
+          xCustomHeader: request.headers["x-custom-header"],
+        }),
+      );
+    },
+  });
+
+  const { makeProxyRequest } = await createProxyServer({
+    port: 0,
+    backendByHostname: {
+      "example.com": "http://localhost:3000",
+    },
+  });
+
+  const response = await makeProxyRequest({
+    headers: {
+      Host: "example.com:1234",
+      Forwarded: 'for="198.51.100.77";proto=https',
+      "X-Forwarded-For": "198.51.100.77",
+      "X-Forwarded-Host": "attacker.example",
+      "X-Forwarded-Proto": "https",
+      "X-Custom-Header": "keep-me",
+    },
+  });
+
+  expect(response.statusCode).toBe(200);
+  const forwardedHeaders = JSON.parse(response.body) as {
+    forwarded?: string;
+    xForwardedFor?: string;
+    xForwardedHost?: string;
+    xForwardedProto?: string;
+    xCustomHeader?: string;
+  };
+
+  expect(forwardedHeaders.forwarded).toBeUndefined();
+  expect(forwardedHeaders.xForwardedFor).toBe("::ffff:127.0.0.1");
+  expect(forwardedHeaders.xForwardedHost).toBe("example.com:1234");
+  expect(forwardedHeaders.xForwardedProto).toBe("http");
+  expect(forwardedHeaders.xCustomHeader).toBe("keep-me");
+});
 test("one client can make requests to two different paths on the same backend", async () => {
   await createBackendServer({
     port: 3000,
