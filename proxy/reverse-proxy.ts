@@ -87,16 +87,16 @@ export function boot(opts: ProxyConfig) {
     forwardedHeaders["x-forwarded-host"] = hostHeader;
     forwardedHeaders["x-forwarded-proto"] = "http";
 
-    const backendUrl = new URL(proxyRequest.url ?? "/", backendService);
-    // Prevent multiple writes when timeout, error, and response events race.
+    const backendUrl = new URL(proxyRequest.url ?? "/", backendService)
+    // Flag to prevent any race conditions on callbacks trying to respond twice.
     let responseSent = false;
 
     const sendGatewayError = (statusCode: number, message: string) => {
-      if (responseSent || proxyResponse.headersSent || proxyResponse.writableEnded) {
+      if (responseSent) {
         return;
       }
-
       responseSent = true;
+
       proxyResponse.statusCode = statusCode;
       proxyResponse.end(message);
     };
@@ -108,8 +108,12 @@ export function boot(opts: ProxyConfig) {
         headers: forwardedHeaders,
       },
       (backendResponse) => {
+        if (responseSent) {
+          return;
+        }
+        responseSent = true;
+
         if (backendResponse.statusCode) {
-          responseSent = true;
           proxyResponse.writeHead(
             backendResponse.statusCode,
             backendResponse.headers,
@@ -121,9 +125,9 @@ export function boot(opts: ProxyConfig) {
       },
     );
 
-    // Timeout the request.
+    // Timeout the proxy request
     backendRequest.setTimeout(backendRequestTimeoutMs, () => {
-      // Destroy closes the underlying TCP connection and releases the socket.
+      // This will close the TCP connection and release the socket.
       backendRequest.destroy(new Error("Backend request timed out"));
       sendGatewayError(504, "Gateway Timeout");
     });
