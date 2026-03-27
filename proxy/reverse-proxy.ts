@@ -36,12 +36,25 @@ export function boot(opts: ProxyConfig) {
       `Proxy request received - Host: ${hostHeader} - host config found`,
     );
 
+    const forwardedHeaders: http.OutgoingHttpHeaders = {
+      ...proxyRequest.headers,
+    };
+    delete forwardedHeaders["x-forwarded-for"];
+    delete forwardedHeaders["x-forwarded-host"];
+    delete forwardedHeaders["x-forwarded-proto"];
+    delete forwardedHeaders.forwarded;
+
+    forwardedHeaders["x-forwarded-for"] =
+      proxyRequest.socket.remoteAddress ?? "";
+    forwardedHeaders["x-forwarded-host"] = hostHeader;
+    forwardedHeaders["x-forwarded-proto"] = "http";
+
     const backendUrl = new URL(proxyRequest.url ?? "/", backendService);
     const backendRequest = http.request(
       backendUrl,
       {
         method: proxyRequest.method,
-        headers: proxyRequest.headers,
+        headers: forwardedHeaders,
       },
       (backendResponse) => {
         if (backendResponse.statusCode) {
