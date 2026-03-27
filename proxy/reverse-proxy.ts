@@ -10,7 +10,9 @@ import * as http from "node:http";
 export type ProxyConfig = {
   port?: number;
   /**
-   * Timeout in milliseconds for requests to backend servers.
+   * Idle timeout in milliseconds for requests to backend servers.
+   * This currently covers inactivity on the proxied backend request.
+   * In future, this could be split into separate connect, first-byte, and idle timeouts.
    * When exceeded, the proxy returns 504 Gateway Timeout.
    * Defaults to 30 seconds.
    */
