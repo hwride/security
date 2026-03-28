@@ -1,4 +1,4 @@
-name: CORS
+name: Proxy
 
 on: push
 
@@ -8,16 +8,17 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [12.x]
+        node-version: [24.x]
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Use Node.js ${{matrix.node-version}}
-      uses: actions/setup-node@v1
-      with:
-        node-version: ${{matrix.node-version}}
-    - run: npm ci
-      working-directory: ./cors
-    # seems to timeout at the moment so disabling
-    # - run: npm test
-    #   working-directory: ./cors
+      - uses: actions/checkout@v2
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+        working-directory: ./proxy
+      - run: npm run types
+        working-directory: ./proxy
+      - run: npm test
+        working-directory: ./proxy
