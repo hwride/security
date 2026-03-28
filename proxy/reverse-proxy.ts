@@ -78,15 +78,21 @@ export function boot(opts: ProxyConfig) {
 
     // Flag to prevent any race conditions on callbacks trying to respond twice.
     let responseSent = false;
-
-    const sendGatewayError = (statusCode: number, message: string) => {
+    const sendResponseOnce = (cb: () => void) => {
       if (responseSent) {
         return;
+      } else {
+        responseSent = true;
+        cb();
       }
-      responseSent = true;
+    };
 
-      proxyResponse.statusCode = statusCode;
-      proxyResponse.end(message);
+    // Send a proxy response with some simple text.
+    const sendGatewayError = (statusCode: number, message: string) => {
+      sendResponseOnce(() => {
+        proxyResponse.statusCode = statusCode;
+        proxyResponse.end(message);
+      });
     };
 
     const serverDetails = getServerDetails({
@@ -110,16 +116,11 @@ export function boot(opts: ProxyConfig) {
       },
       (backendResponse) => {
         if (backendResponse.statusCode) {
-          if (responseSent) {
-            return;
-          }
-          responseSent = true;
-
-          proxyResponse.writeHead(
-            backendResponse.statusCode,
-            backendResponse.headers,
-          );
-          backendResponse.pipe(proxyResponse);
+          const statusCode = backendResponse.statusCode;
+          sendResponseOnce(() => {
+            proxyResponse.writeHead(statusCode, backendResponse.headers);
+            backendResponse.pipe(proxyResponse);
+          });
         } else {
           sendGatewayError(502, "Bad Gateway");
         }
