@@ -43,39 +43,7 @@ export function boot(opts: ProxyConfig) {
   const backendRequestTimeoutMs =
     opts.backendRequestTimeoutMs ?? DEFAULT_BACKEND_REQUEST_TIMEOUT_MS;
 
-  const server = createServer((proxyRequest, proxyResponse) => {
-    const hostHeader = proxyRequest.headers.host;
-    const hostname =
-      hostHeader == null ? null : getHostnameFromHostHeader(hostHeader);
-
-    if (hostHeader == null || hostname == null) {
-      console.error(
-        `Proxy request received - Host: ${hostHeader} - invalid host`,
-      );
-      proxyResponse.statusCode = 400;
-      proxyResponse.end("Bad Request");
-      return;
-    }
-
-    const selectedServer = selectServer({
-      backends,
-      hostname,
-    });
-    if (selectedServer == null) {
-      proxyResponse.statusCode = 502;
-      proxyResponse.end("Bad Gateway");
-      return;
-    }
-
-    console.log(
-      `Proxy request received - Host: ${hostHeader} - host config found`,
-    );
-
-    const forwardedHeaders = getRequestHeaders({
-      proxyRequest,
-      hostHeader,
-    });
-
+  const server = createServer((clientRequest, proxyResponse) => {
     // Request state.
     let state:
       | { status: "pending" }
@@ -84,6 +52,7 @@ export function boot(opts: ProxyConfig) {
         status: "pending",
       };
 
+    /** Small util to ensure we only try and send a response once. */
     const sendResponseOnce = (
       responseType: "success" | "error",
       cb: () => void,
@@ -96,7 +65,7 @@ export function boot(opts: ProxyConfig) {
       }
     };
 
-    // Send a proxy response with some simple text.
+    /** Send a proxy error response with some simple text. */
     const sendGatewayError = (statusCode: number, message: string) => {
       sendResponseOnce("error", () => {
         proxyResponse.statusCode = statusCode;
@@ -104,6 +73,40 @@ export function boot(opts: ProxyConfig) {
       });
     };
 
+    // The Host header includes hostname and may include port
+    // The hostname does not include port
+    const hostHeader = clientRequest.headers.host;
+    const hostname =
+      hostHeader == null ? null : getHostnameFromHostHeader(hostHeader);
+
+    if (hostHeader == null || hostname == null) {
+      console.error(
+        `Proxy request received - Host: ${hostHeader} - invalid host`,
+      );
+      proxyResponse.statusCode = 400;
+      proxyResponse.end("Bad Request");
+      return;
+    }
+
+    // Check request path is acceptable.
+    const validatedRequestPath = getValidatedRequestPath(clientRequest.url);
+    if (validatedRequestPath == null) {
+      sendGatewayError(400, "Bad Request");
+      return;
+    }
+
+    // Check if we have a valid server from this hostname, and apply any load balancing policy.
+    const serverDetails = getServerDetails({
+      backends,
+      hostname,
+    });
+    if (serverDetails == null) {
+      proxyResponse.statusCode = 502;
+      proxyResponse.end("Bad Gateway");
+      return;
+    }
+
+    /** Central util to handle any kind of failures communicating with the backend.  */
     const handleBackendFailure = ({
       error,
       message = "Bad Gateway",
@@ -139,53 +142,51 @@ export function boot(opts: ProxyConfig) {
       }
     };
 
-    const serverDetails = getServerDetails({
-      selectedServer,
-      requestTarget: proxyRequest.url,
+    // Prepare headers.
+    const forwardedHeaders = getProxiedRequestHeaders({
+      proxyRequest: clientRequest,
+      hostHeader,
     });
-    if (serverDetails == null) {
-      sendGatewayError(400, "Bad Request");
-      return;
-    }
 
     // Make request to backend.
-    const backendRequest = http.request(
-      {
-        method: proxyRequest.method,
-        protocol: serverDetails.protocol,
-        hostname: serverDetails.hostname,
-        port: serverDetails.port,
-        path: serverDetails.path,
-        headers: forwardedHeaders,
-      },
-      (backendResponse) => {
-        backendResponse.on("close", () => {
-          /* Close can trigger:
+    const requestOpts = {
+      method: clientRequest.method,
+      protocol: serverDetails.protocol,
+      hostname: serverDetails.hostname,
+      port: serverDetails.port,
+      path: validatedRequestPath,
+      headers: forwardedHeaders,
+    };
+    console.log(
+      `Proxy request received - Host: ${hostHeader} - sending to ${JSON.stringify(requestOpts, null, 2)}`,
+    );
+    const backendRequest = http.request(requestOpts, (backendResponse) => {
+      backendResponse.on("close", () => {
+        /* Close can trigger:
             1. When the request succeeds and the socket is closed.
             2. When the socket was closed before the HTTP request finished.
            We only want to trigger a failure in scenario 2. */
-          if (!backendResponse.complete) {
-            handleBackendFailure();
-          }
-        });
-        backendResponse.on("error", (error) => {
-          handleBackendFailure({
-            error,
-          });
-        });
-
-        // If we get a status code from the backend, send code & headers, then start streaming the response body.
-        if (backendResponse.statusCode) {
-          const { statusCode, headers } = backendResponse;
-          sendResponseOnce("success", () => {
-            proxyResponse.writeHead(statusCode, headers);
-            backendResponse.pipe(proxyResponse);
-          });
-        } else {
-          sendGatewayError(502, "Bad Gateway");
+        if (!backendResponse.complete) {
+          handleBackendFailure();
         }
-      },
-    );
+      });
+      backendResponse.on("error", (error) => {
+        handleBackendFailure({
+          error,
+        });
+      });
+
+      // If we get a status code from the backend, send code & headers, then start streaming the response body.
+      if (backendResponse.statusCode) {
+        const { statusCode, headers } = backendResponse;
+        sendResponseOnce("success", () => {
+          proxyResponse.writeHead(statusCode, headers);
+          backendResponse.pipe(proxyResponse);
+        });
+      } else {
+        sendGatewayError(502, "Bad Gateway");
+      }
+    });
 
     // Timeout the proxy request
     backendRequest.setTimeout(backendRequestTimeoutMs, () => {
@@ -206,7 +207,8 @@ export function boot(opts: ProxyConfig) {
       });
     });
 
-    proxyRequest.pipe(backendRequest);
+    // Proxy the client request data to the backend request.
+    clientRequest.pipe(backendRequest);
   });
 
   server.listen(port, () => {
@@ -224,7 +226,13 @@ function getHostnameFromHostHeader(hostHeader: string) {
   }
 }
 
-function selectServer({
+/**
+ * Get the final server to use.
+ *
+ * - Finds an appropriate backend for the given hostname.
+ * - If a load balancing policy exists applies that.
+ */
+function getServerDetails({
   backends,
   hostname,
 }: {
@@ -246,20 +254,35 @@ function selectServer({
     return null;
   }
 
+  let selectedServer: ServerConfig;
+
+  // Apply load balancing policy.
   if (backendConfig.loadBalancingPolicy === "random") {
     const serverIndex = Math.floor(
       Math.random() * backendConfig.servers.length,
     );
-    return backendConfig.servers[serverIndex] ?? null;
+    selectedServer = backendConfig.servers[serverIndex];
+  } else {
+    selectedServer = backendConfig.servers[0];
   }
 
-  return backendConfig.servers[0] ?? null;
+  if (selectedServer != null) {
+    const serverUrl = new URL(selectedServer.url);
+
+    return {
+      protocol: "http:",
+      hostname: serverUrl.hostname,
+      port: serverUrl.port,
+    };
+  } else {
+    return null;
+  }
 }
 
 /**
  * Get the headers that should be used for requests to our backends.
  */
-function getRequestHeaders({
+function getProxiedRequestHeaders({
   proxyRequest,
   hostHeader,
 }: {
@@ -285,34 +308,19 @@ function getRequestHeaders({
 }
 
 /**
- * Get the final server details to use for the call.
- *
- * Ensures absolute URLs can't sneakily change the target host.
+ * Validate the incoming request path from the client. Only supports origin-form request targets.
  */
-function getServerDetails({
-  selectedServer,
-  requestTarget,
-}: {
-  selectedServer: ServerConfig;
-  requestTarget: string | undefined;
-}) {
-  const normalizedRequestTarget = requestTarget ?? "/";
+function getValidatedRequestPath(requestPath: string | undefined) {
+  const normalizedRequestPath = requestPath ?? "/";
   if (
-    !normalizedRequestTarget.startsWith("/") ||
-    normalizedRequestTarget.startsWith("//")
+    !normalizedRequestPath.startsWith("/") ||
+    normalizedRequestPath.startsWith("//")
   ) {
     console.error(
-      `Proxy request received - rejected non-origin-form request target: ${normalizedRequestTarget}`,
+      `Proxy request received - rejected non-origin-form request target: ${normalizedRequestPath}`,
     );
     return null;
   }
 
-  const serverUrl = new URL(selectedServer.url);
-
-  return {
-    protocol: "http:",
-    hostname: serverUrl.hostname,
-    port: serverUrl.port,
-    path: normalizedRequestTarget,
-  };
+  return normalizedRequestPath;
 }
