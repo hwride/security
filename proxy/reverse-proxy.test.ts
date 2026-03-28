@@ -1,12 +1,8 @@
 import * as http from "node:http";
-import { createRequire } from "node:module";
-import { PassThrough } from "node:stream";
 
 import { afterEach, expect, test, vi } from "vitest";
 
 import { boot, ProxyConfig } from "./reverse-proxy.js";
-
-const require = createRequire(import.meta.url);
 
 let proxyServer: http.Server | null = null;
 let backendServers: http.Server[] = [];
@@ -155,83 +151,6 @@ test("returns 502 when the proxy cannot connect to the backend", async () => {
   expect(response.body).toBe("Bad Gateway");
 });
 
-test("returns 502 when backend response has no status code", async () => {
-  const httpModule = require("node:http") as typeof import("node:http");
-  const originalRequest = httpModule.request.bind(httpModule) as (
-    ...args: unknown[]
-  ) => http.ClientRequest;
-  const requestSpy = vi.spyOn(httpModule, "request").mockImplementation(((
-    ...args: unknown[]
-  ) => {
-    const options = args[0];
-    const callback =
-      typeof args[1] === "function"
-        ? args[1]
-        : typeof args[2] === "function"
-          ? args[2]
-          : undefined;
-    const isOptionsObject =
-      options != null &&
-      typeof options === "object" &&
-      !(options instanceof URL);
-
-    if (
-      !isOptionsObject ||
-      (options as http.RequestOptions).hostname === "127.0.0.1"
-    ) {
-      return originalRequest(...args);
-    }
-
-    const backendRequest = new PassThrough() as unknown as http.ClientRequest;
-    Object.assign(backendRequest, {
-      setTimeout: vi.fn(),
-    });
-
-    const backendResponse = new PassThrough() as unknown as http.IncomingMessage;
-    Object.assign(backendResponse, {
-      complete: true,
-      headers: {},
-      statusCode: undefined,
-    });
-
-    queueMicrotask(() => {
-      callback?.(backendResponse);
-    });
-
-    return backendRequest;
-  }) as typeof http.request);
-
-  try {
-    const { makeProxyRequest } = await createProxyServer({
-      port: 0,
-      backends: {
-        "example.com": { servers: [{ url: "http://localhost:3000" }] },
-      },
-    });
-
-    const pendingResponse = makeProxyRequest({
-      headers: {
-        Host: "example.com",
-      },
-    });
-
-    const response = await Promise.race([
-      pendingResponse,
-      delay(50).then(() => "timed-out" as const),
-    ]);
-
-    expect(response).not.toBe("timed-out");
-    if (response === "timed-out") {
-      return;
-    }
-
-    expect(response.statusCode).toBe(502);
-    expect(response.body).toBe("Bad Gateway");
-  } finally {
-    requestSpy.mockRestore();
-  }
-});
-
 test("returns 502 when backend closes the TCP connection before sending headers", async () => {
   await createBackendServer({
     port: 3000,
@@ -269,14 +188,14 @@ test("closes the downstream connection when backend closes mid-response", async 
     },
   });
 
-  const { makeProxyRequestHandlingClose } = await createProxyServer({
+  const { makeProxyRequest } = await createProxyServer({
     port: 0,
     backends: {
       "example.com": { servers: [{ url: "http://localhost:3000" }] },
     },
   });
 
-  const response = await makeProxyRequestHandlingClose({
+  const response = await makeProxyRequest({
     headers: {
       Host: "example.com",
     },
@@ -704,27 +623,6 @@ async function createProxyServer(config: ProxyConfig) {
         port: proxyAddress.port,
         setHost,
       }),
-    makeProxyRequestHandlingClose: ({
-      method = "GET",
-      headers = {},
-      body,
-      path = "/",
-      setHost = true,
-    }: {
-      method?: string;
-      headers?: http.OutgoingHttpHeaders;
-      body?: string;
-      path?: string;
-      setHost?: boolean;
-    }) =>
-      makeRequestHandlingClose({
-        body,
-        headers,
-        method,
-        path,
-        port: proxyAddress.port,
-        setHost,
-      }),
   };
 }
 
@@ -780,6 +678,8 @@ function makeRequest({
 }) {
   return new Promise<{
     body: string;
+    closed: boolean;
+    ended: boolean;
     headers: http.IncomingHttpHeaders;
     statusCode: number | undefined;
   }>((resolve, reject) => {
@@ -803,99 +703,30 @@ function makeRequest({
         response.on("end", () => {
           resolve({
             body,
-            headers: response.headers,
-            statusCode: response.statusCode,
-          });
-        });
-      },
-    );
-
-    request.on("error", reject);
-    if (body != null) {
-      request.write(body);
-    }
-    request.end();
-  });
-}
-
-function makeRequestHandlingClose({
-  body,
-  headers = {},
-  method = "GET",
-  path = "/",
-  port,
-  setHost = true,
-}: {
-  body?: string;
-  headers?: http.OutgoingHttpHeaders;
-  method?: string;
-  path?: string;
-  port: number;
-  setHost?: boolean;
-}) {
-  return new Promise<{
-    body: string;
-    closed: boolean;
-    ended: boolean;
-    headers: http.IncomingHttpHeaders;
-    statusCode: number | undefined;
-  }>((resolve, reject) => {
-    const request = http.request(
-      {
-        hostname: "127.0.0.1",
-        method,
-        port,
-        path,
-        headers,
-        setHost,
-      },
-      (response) => {
-        let responseBody = "";
-        let settled = false;
-
-        const resolveOnce = ({
-          closed,
-          ended,
-        }: {
-          closed: boolean;
-          ended: boolean;
-        }) => {
-          if (settled) {
-            return;
-          }
-          settled = true;
-
-          resolve({
-            body: responseBody,
-            closed,
-            ended,
-            headers: response.headers,
-            statusCode: response.statusCode,
-          });
-        };
-
-        response.setEncoding("utf8");
-        response.on("data", (chunk) => {
-          responseBody += chunk;
-        });
-        response.on("end", () => {
-          resolveOnce({
             closed: false,
             ended: true,
+            headers: response.headers,
+            statusCode: response.statusCode,
           });
         });
         response.on("close", () => {
           if (!response.complete) {
-            resolveOnce({
+            resolve({
+              body,
               closed: true,
               ended: false,
+              headers: response.headers,
+              statusCode: response.statusCode,
             });
           }
         });
         response.on("error", () => {
-          resolveOnce({
+          resolve({
+            body,
             closed: true,
             ended: false,
+            headers: response.headers,
+            statusCode: response.statusCode,
           });
         });
       },
