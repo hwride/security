@@ -17,7 +17,11 @@ export type ProxyConfig = {
    * Defaults to 30 seconds.
    */
   backendRequestTimeoutMs?: number;
-  /** Different backends this proxy can send requests to. Key is the hostname that should be proxied. */
+  /**
+   * Map of hostname to backends to that should receive requests for that hostname.
+   *
+   * A backend can contain multiple servers.
+   */
   backends: Record<string, BackendConfig>;
 };
 
