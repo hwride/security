@@ -2,7 +2,8 @@
   "type": "module",
   "scripts": {
     "dev-app": "node --watch server-app.ts",
-    "dev-attacker": "node --watch server-attacker.ts"
+    "dev-attacker": "node --watch server-attacker.ts",
+    "proxy": "node --watch proxy.ts"
   },
   "dependencies": {
     "@fastify/formbody": "^8.0.2",
