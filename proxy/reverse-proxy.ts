@@ -67,7 +67,6 @@ export function boot(opts: ProxyConfig) {
       return;
     }
 
-    const backendService = selectedServer.url;
     console.log(
       `Proxy request received - Host: ${hostHeader} - host config found`,
     );
@@ -87,7 +86,6 @@ export function boot(opts: ProxyConfig) {
     forwardedHeaders["x-forwarded-host"] = hostHeader;
     forwardedHeaders["x-forwarded-proto"] = "http";
 
-    const backendUrl = new URL(proxyRequest.url ?? "/", backendService)
     // Flag to prevent any race conditions on callbacks trying to respond twice.
     let responseSent = false;
 
@@ -101,10 +99,23 @@ export function boot(opts: ProxyConfig) {
       proxyResponse.end(message);
     };
 
+    const serverDetails = getServerDetails({
+      selectedServer,
+      requestTarget: proxyRequest.url,
+    });
+    if (serverDetails == null) {
+      sendGatewayError(400, "Bad Request");
+      return;
+    }
+
+    // Make request to backend.
     const backendRequest = http.request(
-      backendUrl,
       {
         method: proxyRequest.method,
+        protocol: serverDetails.protocol,
+        hostname: serverDetails.hostname,
+        port: serverDetails.port,
+        path: serverDetails.path,
         headers: forwardedHeaders,
       },
       (backendResponse) => {
@@ -186,4 +197,37 @@ function selectServer({
   }
 
   return backendConfig.servers[0] ?? null;
+}
+
+/**
+ * Get the final server details to use for the call.
+ *
+ * Ensures absolute URLs can't sneakily change the target host.
+ */
+function getServerDetails({
+  selectedServer,
+  requestTarget,
+}: {
+  selectedServer: ServerConfig;
+  requestTarget: string | undefined;
+}) {
+  const normalizedRequestTarget = requestTarget ?? "/";
+  if (
+    !normalizedRequestTarget.startsWith("/") ||
+    normalizedRequestTarget.startsWith("//")
+  ) {
+    console.error(
+      `Proxy request received - rejected non-origin-form request target: ${normalizedRequestTarget}`,
+    );
+    return null;
+  }
+
+  const serverUrl = new URL(selectedServer.url);
+
+  return {
+    protocol: "http:",
+    hostname: serverUrl.hostname,
+    port: serverUrl.port,
+    path: normalizedRequestTarget,
+  };
 }

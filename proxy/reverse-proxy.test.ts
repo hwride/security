@@ -418,6 +418,86 @@ test("supports random load balancing policy", async () => {
   }
 });
 
+test("rejects absolute-form URL request targets to prevent backend override attacks", async () => {
+  await createBackendServer({
+    port: 3000,
+    body: "trusted backend",
+  });
+  await createBackendServer({
+    port: 4000,
+    body: "attacker backend",
+  });
+
+  const { makeProxyRequest } = await createProxyServer({
+    port: 0,
+    backends: {
+      "example.com": { servers: [{ url: "http://localhost:3000" }] },
+    },
+  });
+
+  const response = await makeProxyRequest({
+    headers: {
+      Host: "example.com",
+    },
+    path: "http://127.0.0.1:4000/steal-data",
+  });
+
+  expect(response.statusCode).toBe(400);
+  expect(response.body).toBe("Bad Request");
+});
+
+test("rejects same-host absolute-form URL request targets", async () => {
+  await createBackendServer({
+    port: 3000,
+    body: "trusted backend",
+  });
+
+  const { makeProxyRequest } = await createProxyServer({
+    port: 0,
+    backends: {
+      "example.com": { servers: [{ url: "http://localhost:3000" }] },
+    },
+  });
+
+  const response = await makeProxyRequest({
+    headers: {
+      Host: "example.com",
+    },
+    path: "http://example.com/steal-data",
+  });
+
+  expect(response.statusCode).toBe(400);
+  expect(response.body).toBe("Bad Request");
+});
+
+test("rejects network-path URL request targets to prevent backend override attacks", async () => {
+  await createBackendServer({
+    port: 3000,
+    body: "trusted backend",
+  });
+  await createBackendServer({
+    port: 4000,
+    body: "attacker backend",
+  });
+
+  const { makeProxyRequest } = await createProxyServer({
+    port: 0,
+    backends: {
+      "example.com": { servers: [{ url: "http://localhost:3000" }] },
+    },
+  });
+
+  const response = await makeProxyRequest({
+    headers: {
+      Host: "example.com",
+    },
+    path: "//127.0.0.1:4000/steal-data",
+  });
+
+  expect(response.statusCode).toBe(400);
+  expect(response.body).toBe("Bad Request");
+});
+
 async function createBackendServer({
   port,
   body,
