@@ -109,12 +109,12 @@ export function boot(opts: ProxyConfig) {
         headers: forwardedHeaders,
       },
       (backendResponse) => {
-        if (responseSent) {
-          return;
-        }
-        responseSent = true;
-
         if (backendResponse.statusCode) {
+          if (responseSent) {
+            return;
+          }
+          responseSent = true;
+
           proxyResponse.writeHead(
             backendResponse.statusCode,
             backendResponse.headers,
