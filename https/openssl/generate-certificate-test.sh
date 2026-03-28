@@ -16,11 +16,14 @@ echo 'Generating CA private key...'
 openssl genrsa -out certificate-authority/private-key.key 2048
 echo ''
 
-# Generate self-signed CA root certificate.
+# Generate self-signed CA root certificate with explicit CA extensions.
 echo 'Generating CA root certificate...'
 openssl req -x509 -sha256 -nodes -days 365 \
   -key certificate-authority/private-key.key \
   -out certificate-authority/ca-root.crt \
+  -addext "basicConstraints=critical,CA:TRUE" \
+  -addext "keyUsage=critical,keyCertSign,cRLSign" \
+  -addext "subjectKeyIdentifier=hash" \
   -subj "/C=UK/ST=London/L=London/O=Test CA Org/OU=IT/CN=test-ca.local"
 
 ## Setup Server.
