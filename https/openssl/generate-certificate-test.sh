@@ -56,6 +56,10 @@ openssl x509 -req \
 # -extfile is required to assign Subject Alternative Name which Chrome requires to trust an SSL certificate.
 
 echo ''
+echo 'Verifying server certificate against CA certificate...'
+openssl verify -x509_strict --CAfile certificate-authority/ca-root.crt server/signed-cert.crt
+
+echo ''
 echo 'Commands'
 echo '--------'
 echo 'Verify signed certificate against CA: openssl verify -x509_strict --CAfile certificate-authority/ca-root.crt server/signed-cert.crt'
