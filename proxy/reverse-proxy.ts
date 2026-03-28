@@ -71,20 +71,10 @@ export function boot(opts: ProxyConfig) {
       `Proxy request received - Host: ${hostHeader} - host config found`,
     );
 
-    const forwardedHeaders: http.OutgoingHttpHeaders = {
-      ...proxyRequest.headers,
-    };
-    delete forwardedHeaders["x-forwarded-for"];
-    delete forwardedHeaders["x-forwarded-host"];
-    delete forwardedHeaders["x-forwarded-proto"];
-    delete forwardedHeaders["forwarded"];
-
-    const remoteAddress = proxyRequest.socket.remoteAddress;
-    if (remoteAddress != null) {
-      forwardedHeaders["x-forwarded-for"] = remoteAddress;
-    }
-    forwardedHeaders["x-forwarded-host"] = hostHeader;
-    forwardedHeaders["x-forwarded-proto"] = "http";
+    const forwardedHeaders = getRequestHeaders({
+      proxyRequest,
+      hostHeader,
+    });
 
     // Flag to prevent any race conditions on callbacks trying to respond twice.
     let responseSent = false;
@@ -197,6 +187,34 @@ function selectServer({
   }
 
   return backendConfig.servers[0] ?? null;
+}
+
+/**
+ * Get the headers that should be used for requests to our backends.
+ */
+function getRequestHeaders({
+  proxyRequest,
+  hostHeader,
+}: {
+  proxyRequest: http.IncomingMessage;
+  hostHeader: string;
+}) {
+  const forwardedHeaders: http.OutgoingHttpHeaders = {
+    ...proxyRequest.headers,
+  };
+  delete forwardedHeaders["x-forwarded-for"];
+  delete forwardedHeaders["x-forwarded-host"];
+  delete forwardedHeaders["x-forwarded-proto"];
+  delete forwardedHeaders["forwarded"];
+
+  const remoteAddress = proxyRequest.socket.remoteAddress;
+  if (remoteAddress != null) {
+    forwardedHeaders["x-forwarded-for"] = remoteAddress;
+  }
+  forwardedHeaders["x-forwarded-host"] = hostHeader;
+  forwardedHeaders["x-forwarded-proto"] = "http";
+
+  return forwardedHeaders;
 }
 
 /**
