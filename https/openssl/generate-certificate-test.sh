@@ -4,7 +4,7 @@
 # Cleanup
 rm server/private-key.key
 rm server/server.csr
-rm server/signed-certificate.crt
+rm server/signed-cert.crt
 rm certificate-authority/private-key.key
 rm certificate-authority/ca-root.crt
 mkdir -p server
