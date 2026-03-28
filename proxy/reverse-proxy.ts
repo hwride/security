@@ -78,6 +78,9 @@ export function boot(opts: ProxyConfig) {
 
     // Flag to prevent any race conditions on callbacks trying to respond twice.
     let responseSent = false;
+    let successResponseStarted = false;
+    let backendFailureHandled = false;
+
     const sendResponseOnce = (cb: () => void) => {
       if (responseSent) {
         return;
@@ -93,6 +96,39 @@ export function boot(opts: ProxyConfig) {
         proxyResponse.statusCode = statusCode;
         proxyResponse.end(message);
       });
+    };
+
+    const handleBackendFailure = ({
+      error,
+      message = "Bad Gateway",
+      statusCode = 502,
+    }: {
+      error?: unknown;
+      message?: string;
+      statusCode?: number;
+    } = {}) => {
+      if (error != null) {
+        console.error(error);
+      }
+
+      if (backendFailureHandled) {
+        return;
+      }
+      backendFailureHandled = true;
+
+      // If we've already sent status code + headers for a successful response, we can't now send a new error status
+      // code and headers because you only send these once per request.
+      // But we've detected an error from the backend. So handle it by just closing the connection to the client early,
+      // to alert them there's a problem as soon as possible.
+      // Note specifically not using !proxyResponse.destroyed as the flag, because we don't want to accidentally
+      // destroy the proxy response if two error events come in, the first sets a successful error response, then
+      // the second accidentally destroys the connection.
+      if (successResponseStarted) {
+        proxyResponse.destroy();
+        return;
+      }
+
+      sendGatewayError(statusCode, message);
     };
 
     const serverDetails = getServerDetails({
@@ -115,8 +151,20 @@ export function boot(opts: ProxyConfig) {
         headers: forwardedHeaders,
       },
       (backendResponse) => {
+        backendResponse.on("close", () => {
+          if (!backendResponse.complete) {
+            handleBackendFailure();
+          }
+        });
+        backendResponse.on("error", (error) => {
+          handleBackendFailure({
+            error,
+          });
+        });
+
         if (backendResponse.statusCode) {
           const statusCode = backendResponse.statusCode;
+          successResponseStarted = true;
           sendResponseOnce(() => {
             proxyResponse.writeHead(statusCode, backendResponse.headers);
             backendResponse.pipe(proxyResponse);
@@ -131,13 +179,17 @@ export function boot(opts: ProxyConfig) {
     backendRequest.setTimeout(backendRequestTimeoutMs, () => {
       // This will close the TCP connection and release the socket.
       backendRequest.destroy(new Error("Backend request timed out"));
-      sendGatewayError(504, "Gateway Timeout");
+      handleBackendFailure({
+        message: "Gateway Timeout",
+        statusCode: 504,
+      });
     });
 
-    // Handle error.
+    // Handle request errors.
     backendRequest.on("error", (error) => {
-      console.error(error);
-      sendGatewayError(502, "Bad Gateway");
+      handleBackendFailure({
+        error,
+      });
     });
 
     proxyRequest.pipe(backendRequest);
