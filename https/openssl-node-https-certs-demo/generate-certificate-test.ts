@@ -99,13 +99,24 @@ async function main() {
     "-CAcreateserial",
     "-out",
     serverSignedCertPath,
+    // The certificate is valid for 5 days.
     "-days",
-    "500",
+    "5",
     "-sha256",
     "-extfile",
     serverCertificateExtensionsPath,
   ]);
   console.log(`Created: ${serverSignedCertPath}`);
+
+  console.log("");
+  console.log("Verifying server certificate against CA certificate...");
+  const verifyResult = await openssl("verify", [
+    "-x509_strict",
+    "-CAfile",
+    caRootCertPath,
+    serverSignedCertPath,
+  ]);
+  console.log("Verify result: " + verifyResult.stdout.trim());
 }
 
 main().catch(handleFatalError);
