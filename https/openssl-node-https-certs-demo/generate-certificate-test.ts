@@ -27,24 +27,29 @@ async function main() {
 
   console.log("");
   console.log("Generating CA root certificate...");
+  // openssl req = create and process certificate signing requests (CSRs),
+  //               and generate self-signed certificates.
   await openssl("req", [
+    // Generate an x509 certificate, used for HTTPS.
     "-x509",
     "-sha256",
     // The certificate is valid for 5 days.
     "-days",
     "5",
+    // Path to our private key, used to sign the certificate.
     "-key",
     caPrivateKeyPath,
+    // Path to write our generate certificate to.
     "-out",
     caRootCertPath,
     // basicConstraints: mark this certificate as a CA certificate.
     "-addext",
     "basicConstraints=critical,CA:TRUE",
-    "-addext",
     // keyUsage: allow this key to sign certificates.
-    "keyUsage=critical,keyCertSign",
     "-addext",
+    "keyUsage=critical,keyCertSign",
     // subjectKeyIdentifier: give the CA key a stable identifier for chain building.
+    "-addext",
     "subjectKeyIdentifier=hash",
     "-subj",
     "/C=UK/ST=London/L=London/O=Test CA Org/OU=IT/CN=test-ca.local",
