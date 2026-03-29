@@ -9,6 +9,7 @@ const caPrivateKeyPath = join(caDirPath, "ca-private-key.key");
 const caRootCertPath = join(caDirPath, "ca-root.crt");
 const serverDirPath = join(buildDir, "server");
 const serverPrivateKeyPath = join(serverDirPath, "server-private-key.key");
+const serverCsrPath = join(serverDirPath, "server.csr");
 
 async function main() {
   // Cleanup previous runs.
@@ -64,6 +65,20 @@ async function main() {
   console.log("Generating server private key...");
   await openssl("genrsa", ["-out", serverPrivateKeyPath, "2048"]);
   console.log(`Created: ${serverPrivateKeyPath}`);
+
+  console.log("");
+  console.log("Generating certificate signing request...");
+  await openssl("req", [
+    // The -new option generates a new certificate request.
+    "-new",
+    "-key",
+    serverPrivateKeyPath,
+    "-out",
+    serverCsrPath,
+    "-subj",
+    "/C=UK/ST=London/L=London/O=SSL Test Org/OU=IT/CN=localhost",
+  ]);
+  console.log(`Created: ${serverCsrPath}`);
 }
 
 main().catch(handleFatalError);
