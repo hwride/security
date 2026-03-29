@@ -21,7 +21,7 @@ echo 'Generating CA root certificate...'
 # basicConstraints: mark this certificate as a CA certificate.
 # keyUsage: allow this key to sign certificates.
 # subjectKeyIdentifier: give the CA key a stable identifier for chain building.
-openssl req -x509 -sha256 -nodes -days 365 \
+openssl req -x509 -sha256 -days 365 \
   -key certificate-authority/private-key.key \
   -out certificate-authority/ca-root.crt \
   -addext "basicConstraints=critical,CA:TRUE" \

@@ -30,7 +30,6 @@ async function main() {
   await openssl("req", [
     "-x509",
     "-sha256",
-    "-nodes",
     // The certificate is valid for 5 days.
     "-days",
     "5",
