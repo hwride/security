@@ -10,6 +10,11 @@ const caRootCertPath = join(caDirPath, "ca-root.crt");
 const serverDirPath = join(buildDir, "server");
 const serverPrivateKeyPath = join(serverDirPath, "server-private-key.key");
 const serverCsrPath = join(serverDirPath, "server.csr");
+const serverSignedCertPath = join(serverDirPath, "signed-cert.crt");
+const serverCertificateExtensionsPath = resolve(
+  process.cwd(),
+  "../openssl-https-certs-demo/certificate-authority/v3.ext",
+);
 
 async function main() {
   // Cleanup previous runs.
@@ -79,6 +84,28 @@ async function main() {
     "/C=UK/ST=London/L=London/O=SSL Test Org/OU=IT/CN=localhost",
   ]);
   console.log(`Created: ${serverCsrPath}`);
+
+  console.log("");
+  console.log("CA creating signed certificate from CSR...");
+  // openssl x509 - certificate display and signing command
+  await openssl("x509", [
+    "-req",
+    "-in",
+    serverCsrPath,
+    "-CA",
+    caRootCertPath,
+    "-CAkey",
+    caPrivateKeyPath,
+    "-CAcreateserial",
+    "-out",
+    serverSignedCertPath,
+    "-days",
+    "500",
+    "-sha256",
+    "-extfile",
+    serverCertificateExtensionsPath,
+  ]);
+  console.log(`Created: ${serverSignedCertPath}`);
 }
 
 main().catch(handleFatalError);
