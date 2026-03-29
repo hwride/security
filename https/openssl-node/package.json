@@ -1,7 +1,7 @@
 {
   "type": "module",
   "scripts": {
-    "start": "node openssl-node.ts",
+    "test": "vitest run",
     "types": "tsc --noEmit"
   },
   "engines": {
@@ -9,6 +9,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.2"
   }
 }
