@@ -39,7 +39,9 @@ async function main() {
   // openssl req = create and process certificate signing requests (CSRs),
   //               and generate self-signed certificates.
   await openssl("req", [
-    // Generate an x509 certificate, used for HTTPS.
+    // Instead of writing a CSR for a later signing step, create a self-signed X.509 certificate directly.
+    // This means this certificate will be signed with the private key we provide, rather than by a separate
+    // private key owned by a separate certificate authority.
     "-x509",
     "-sha256",
     // The certificate is valid for 5 days.
