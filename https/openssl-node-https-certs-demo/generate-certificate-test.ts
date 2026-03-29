@@ -7,6 +7,8 @@ const buildDir = resolve(process.cwd(), "build");
 const caDirPath = join(buildDir, "certificate-authority");
 const caPrivateKeyPath = join(caDirPath, "ca-private-key.key");
 const caRootCertPath = join(caDirPath, "ca-root.crt");
+const serverDirPath = join(buildDir, "server");
+const serverPrivateKeyPath = join(serverDirPath, "server-private-key.key");
 
 async function main() {
   // Cleanup previous runs.
@@ -17,6 +19,7 @@ async function main() {
 
   // Prepare directories.
   await mkdir(caDirPath, { recursive: true });
+  await mkdir(serverDirPath, { recursive: true });
 
   // Setup Certificate Authority.
   console.log("");
@@ -55,6 +58,12 @@ async function main() {
     "/C=UK/ST=London/L=London/O=Test CA Org/OU=IT/CN=test-ca.local",
   ]);
   console.log(`Created: ${caRootCertPath}`);
+
+  console.log("");
+  console.log("-- Setting up Server --");
+  console.log("Generating server private key...");
+  await openssl("genrsa", ["-out", serverPrivateKeyPath, "2048"]);
+  console.log(`Created: ${serverPrivateKeyPath}`);
 }
 
 main().catch(handleFatalError);
