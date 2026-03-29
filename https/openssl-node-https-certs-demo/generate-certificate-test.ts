@@ -5,7 +5,8 @@ import { join, resolve } from "node:path";
 
 const buildDir = resolve(process.cwd(), "build");
 const caDirPath = join(buildDir, "certificate-authority");
-const caPrivateKeyPath = join(caDirPath, "private-key.key");
+const caPrivateKeyPath = join(caDirPath, "ca-private-key.key");
+const caRootCertPath = join(caDirPath, "ca-root.crt");
 
 async function main() {
   // Cleanup previous runs.
@@ -23,6 +24,33 @@ async function main() {
   console.log("Generating CA private key...");
   await openssl("genrsa", ["-out", caPrivateKeyPath, "2048"]);
   console.log(`Created: ${caPrivateKeyPath}`);
+
+  console.log("");
+  console.log("Generating CA root certificate...");
+  await openssl("req", [
+    "-x509",
+    "-sha256",
+    "-nodes",
+    // The certificate is valid for 5 days.
+    "-days",
+    "5",
+    "-key",
+    caPrivateKeyPath,
+    "-out",
+    caRootCertPath,
+    // basicConstraints: mark this certificate as a CA certificate.
+    "-addext",
+    "basicConstraints=critical,CA:TRUE",
+    "-addext",
+    // keyUsage: allow this key to sign certificates.
+    "keyUsage=critical,keyCertSign",
+    "-addext",
+    // subjectKeyIdentifier: give the CA key a stable identifier for chain building.
+    "subjectKeyIdentifier=hash",
+    "-subj",
+    "/C=UK/ST=London/L=London/O=Test CA Org/OU=IT/CN=test-ca.local",
+  ]);
+  console.log(`Created: ${caRootCertPath}`);
 }
 
 main().catch(handleFatalError);
