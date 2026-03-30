@@ -1,11 +1,17 @@
 import { existsSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { openssl } from "../openssl-node/openssl-node.ts";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const buildDir = resolve(process.cwd(), "build");
+const currentDirectoryPath = dirname(fileURLToPath(import.meta.url));
 
-async function main() {
+if (isMainModule()) {
+  generateCertificateTest().catch(handleFatalError);
+}
+
+export async function generateCertificateTest() {
   // Setup directories.
   await prepareDirectories();
 
@@ -28,8 +34,6 @@ async function main() {
   // Check our certificate can be verified from the certificate authority.
   await verifyServerCertificate(caRootCertPath, serverSignedCertPath);
 }
-
-main().catch(handleFatalError);
 
 async function prepareDirectories() {
   const caDirPath = join(buildDir, "certificate-authority");
@@ -133,7 +137,7 @@ async function createSignedCertificateFromCsr(
   caPrivateKeyPath: string,
   serverCsrPath: string,
 ) {
-  const serverCertificateExtensionsPath = resolve(process.cwd(), "v3.ext");
+  const serverCertificateExtensionsPath = join(currentDirectoryPath, "v3.ext");
   const serverSignedCertPath = join(buildDir, "server", "signed-cert.crt");
   console.log("");
   console.log("CA creating signed certificate from CSR...");
@@ -180,4 +184,8 @@ async function verifyServerCertificate(
 function handleFatalError(error: unknown) {
   console.error(error);
   process.exitCode = 1;
+}
+
+function isMainModule() {
+  return process.argv[1] === fileURLToPath(import.meta.url);
 }
