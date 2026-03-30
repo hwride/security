@@ -41,32 +41,12 @@ test("successful request", async () => {
   await bootHttpsServer(serverSignedCertPath, serverPrivateKeyPath);
 
   // Check we can make a HTTPS request.
-  await new Promise<void>((resolve, reject) => {
-    const request = https.get(
-      "https://localhost:8080",
-      // Pass our self-signed CA certificate to our HTTPS request as a trusted root.
-      // This will then be used to check the server certificate's signature for authenticity.
-      { ca: readFileSync(caRootCertPath) },
-      (response) => {
-        let data = "";
-
-        response.on("data", (chunk: Buffer) => {
-          data += chunk.toString();
-        });
-
-        response.on("end", () => {
-          try {
-            expect(data).toBe("HTTPS response");
-            resolve();
-          } catch (error) {
-            reject(error);
-          }
-        });
-      },
-    );
-
-    request.on("error", reject);
+  // Pass our self-signed CA certificate to our HTTPS request as a trusted root.
+  // This will then be used to check the server certificate's signature for authenticity.
+  const responseBody = await makeHttpsRequest({
+    ca: readFileSync(caRootCertPath),
   });
+  expect(responseBody).toBe("HTTPS response");
 });
 
 test("server certificate is not signed by a trusted root certificate", async () => {
@@ -86,17 +66,8 @@ test("server certificate is not signed by a trusted root certificate", async () 
 
   // Check the HTTPS request fails because the server certificate is not signed by a trusted root certificate.
   expect(
-    new Promise<void>((resolve, reject) => {
-      const request = https.get(
-        "https://localhost:8080",
-        // Don't include our custom CA cert here, to cause the HTTPS request to fail due to an untrusted signature.
-        () => {
-          resolve();
-        },
-      );
-
-      request.on("error", reject);
-    }),
+    // Don't include our custom CA cert here, to cause the HTTPS request to fail due to an untrusted signature.
+    makeHttpsRequest(),
   ).rejects.toMatchObject({
     code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
     message: expect.stringContaining("unable to verify the first certificate"),
@@ -115,17 +86,7 @@ test("server certificate is signed correctly, but hostname does not match the re
   await bootHttpsServer(serverSignedCertPath, serverPrivateKeyPath);
 
   expect(
-    new Promise<void>((resolve, reject) => {
-      const request = https.get(
-        "https://localhost:8080",
-        { ca: readFileSync(caRootCertPath) },
-        () => {
-          resolve();
-        },
-      );
-
-      request.on("error", reject);
-    }),
+    makeHttpsRequest({ ca: readFileSync(caRootCertPath) }),
   ).rejects.toMatchObject({
     code: "ERR_TLS_CERT_ALTNAME_INVALID",
     message: expect.stringContaining("does not match certificate's altnames"),
@@ -145,17 +106,7 @@ test("server certificate is signed correctly, but certificate has expired", asyn
   await bootHttpsServer(serverSignedCertPath, serverPrivateKeyPath);
 
   expect(
-    new Promise<void>((resolve, reject) => {
-      const request = https.get(
-        "https://localhost:8080",
-        { ca: readFileSync(caRootCertPath) },
-        () => {
-          resolve();
-        },
-      );
-
-      request.on("error", reject);
-    }),
+    makeHttpsRequest({ ca: readFileSync(caRootCertPath) }),
   ).rejects.toMatchObject({
     code: "CERT_HAS_EXPIRED",
     message: expect.stringContaining("certificate has expired"),
@@ -189,5 +140,27 @@ async function bootHttpsServer(
 
   await new Promise<void>((resolve) => {
     server!.listen(8080, resolve);
+  });
+}
+
+function makeHttpsRequest(options?: https.RequestOptions) {
+  return new Promise<string>((resolve, reject) => {
+    const request = https.get(
+      "https://localhost:8080",
+      options ?? {},
+      (response) => {
+        let data = "";
+
+        response.on("data", (chunk: Buffer) => {
+          data += chunk.toString();
+        });
+
+        response.on("end", () => {
+          resolve(data);
+        });
+      },
+    );
+
+    request.on("error", reject);
   });
 }
