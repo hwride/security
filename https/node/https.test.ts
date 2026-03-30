@@ -1,17 +1,34 @@
-import { get } from "node:https";
+import { readFileSync } from "node:fs";
+import * as https from "node:https";
+import { resolve } from "node:path";
 import { expect, test } from "vitest";
 import { generateCertificateTest } from "../openssl-node-https-certs-demo/generate-certificate-test.ts";
 
 test("https", async () => {
   expect.hasAssertions();
 
-  await generateCertificateTest();
+  const { serverPrivateKeyPath, serverSignedCertPath } =
+    await generateCertificateTest(resolve(process.cwd(), "build"));
 
-  const { server, serverListening } = await import("./https-server.ts");
-  await serverListening;
+  // Boot the server.
+  const server = https.createServer(
+    {
+      key: readFileSync(serverPrivateKeyPath),
+      cert: readFileSync(serverSignedCertPath),
+    },
+    function handleRequest(_request, response) {
+      response.writeHead(200);
+      response.end("HTTPS response");
+    },
+  );
 
+  await new Promise<void>((resolve) => {
+    server.listen(8080, resolve);
+  });
+
+  // Check we can make a HTTPS request.
   await new Promise<void>((resolve, reject) => {
-    const request = get(
+    const request = https.get(
       "https://localhost:8080",
       { rejectUnauthorized: false },
       (response) => {

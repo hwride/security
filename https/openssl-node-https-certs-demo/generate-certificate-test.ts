@@ -4,28 +4,44 @@ import { openssl } from "../openssl-node/openssl-node.ts";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const buildDir = resolve(process.cwd(), "build");
 const currentDirectoryPath = dirname(fileURLToPath(import.meta.url));
 
 if (isMainModule()) {
   generateCertificateTest().catch(handleFatalError);
 }
 
-export async function generateCertificateTest() {
+type GenerateCertificateTestResult = {
+  caPrivateKeyPath: string;
+  caRootCertPath: string;
+  serverPrivateKeyPath: string;
+  serverCsrPath: string;
+  serverSignedCertPath: string;
+};
+
+export async function generateCertificateTest(
+  outputDirectoryPath = resolve(process.cwd(), "build"),
+): Promise<GenerateCertificateTestResult> {
   // Setup directories.
-  await prepareDirectories();
+  await prepareDirectories(outputDirectoryPath);
 
   // Certificate authority setup.
-  const caPrivateKeyPath = await generateCaPrivateKey();
-  const caRootCertPath = await generateCaRootCertificate(caPrivateKeyPath);
+  const caPrivateKeyPath = await generateCaPrivateKey(outputDirectoryPath);
+  const caRootCertPath = await generateCaRootCertificate(
+    outputDirectoryPath,
+    caPrivateKeyPath,
+  );
 
   // Server setup.
-  const serverPrivateKeyPath = await generateServerPrivateKey();
-  const serverCsrPath =
-    await generateCertificateSigningRequest(serverPrivateKeyPath);
+  const serverPrivateKeyPath =
+    await generateServerPrivateKey(outputDirectoryPath);
+  const serverCsrPath = await generateCertificateSigningRequest(
+    outputDirectoryPath,
+    serverPrivateKeyPath,
+  );
 
   // Certificate authority creates a signed certificate from the certificate signing request.
   const serverSignedCertPath = await createSignedCertificateFromCsr(
+    outputDirectoryPath,
     caRootCertPath,
     caPrivateKeyPath,
     serverCsrPath,
@@ -33,22 +49,30 @@ export async function generateCertificateTest() {
 
   // Check our certificate can be verified from the certificate authority.
   await verifyServerCertificate(caRootCertPath, serverSignedCertPath);
+
+  return {
+    caPrivateKeyPath,
+    caRootCertPath,
+    serverPrivateKeyPath,
+    serverCsrPath,
+    serverSignedCertPath,
+  };
 }
 
-async function prepareDirectories() {
-  const caDirPath = join(buildDir, "certificate-authority");
-  const serverDirPath = join(buildDir, "server");
-  if (existsSync(buildDir)) {
+async function prepareDirectories(outputDirectoryPath: string) {
+  const caDirPath = join(outputDirectoryPath, "certificate-authority");
+  const serverDirPath = join(outputDirectoryPath, "server");
+  if (existsSync(outputDirectoryPath)) {
     console.warn("Existing build directory detected, removing...");
-    await rm(buildDir, { recursive: true, force: true });
+    await rm(outputDirectoryPath, { recursive: true, force: true });
   }
   await mkdir(caDirPath, { recursive: true });
   await mkdir(serverDirPath, { recursive: true });
 }
 
-async function generateCaPrivateKey() {
+async function generateCaPrivateKey(outputDirectoryPath: string) {
   const caPrivateKeyPath = join(
-    buildDir,
+    outputDirectoryPath,
     "certificate-authority",
     "ca-private-key.key",
   );
@@ -60,8 +84,15 @@ async function generateCaPrivateKey() {
   return caPrivateKeyPath;
 }
 
-async function generateCaRootCertificate(caPrivateKeyPath: string) {
-  const caRootCertPath = join(buildDir, "certificate-authority", "ca-root.crt");
+async function generateCaRootCertificate(
+  outputDirectoryPath: string,
+  caPrivateKeyPath: string,
+) {
+  const caRootCertPath = join(
+    outputDirectoryPath,
+    "certificate-authority",
+    "ca-root.crt",
+  );
   console.log("");
   console.log("Generating CA root certificate...");
   // openssl req = create and process certificate signing requests (CSRs),
@@ -98,9 +129,9 @@ async function generateCaRootCertificate(caPrivateKeyPath: string) {
   return caRootCertPath;
 }
 
-async function generateServerPrivateKey() {
+async function generateServerPrivateKey(outputDirectoryPath: string) {
   const serverPrivateKeyPath = join(
-    buildDir,
+    outputDirectoryPath,
     "server",
     "server-private-key.key",
   );
@@ -113,8 +144,11 @@ async function generateServerPrivateKey() {
   return serverPrivateKeyPath;
 }
 
-async function generateCertificateSigningRequest(serverPrivateKeyPath: string) {
-  const serverCsrPath = join(buildDir, "server", "server.csr");
+async function generateCertificateSigningRequest(
+  outputDirectoryPath: string,
+  serverPrivateKeyPath: string,
+) {
+  const serverCsrPath = join(outputDirectoryPath, "server", "server.csr");
   console.log("");
   console.log("Generating certificate signing request...");
   await openssl("req", [
@@ -133,12 +167,17 @@ async function generateCertificateSigningRequest(serverPrivateKeyPath: string) {
 }
 
 async function createSignedCertificateFromCsr(
+  outputDirectoryPath: string,
   caRootCertPath: string,
   caPrivateKeyPath: string,
   serverCsrPath: string,
 ) {
   const serverCertificateExtensionsPath = join(currentDirectoryPath, "v3.ext");
-  const serverSignedCertPath = join(buildDir, "server", "signed-cert.crt");
+  const serverSignedCertPath = join(
+    outputDirectoryPath,
+    "server",
+    "signed-cert.crt",
+  );
   console.log("");
   console.log("CA creating signed certificate from CSR...");
   // openssl x509 - certificate display and signing command
