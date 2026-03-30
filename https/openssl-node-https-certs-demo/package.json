@@ -1,6 +1,7 @@
 {
   "type": "module",
   "scripts": {
-    "start": "node generate-certificate-test.ts"
+    "start": "node generate-certificate-test.ts",
+    "install-root-ca-cert": "node install-root-ca-cert.ts"
   }
 }
