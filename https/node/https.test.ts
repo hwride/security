@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { afterEach, expect, test } from "vitest";
 import { generateCertificateTest } from "../openssl-node-https-certs-demo/generate-certificate-test.ts";
 
+const serverPort = 8080;
 let server: https.Server | undefined;
 
 afterEach(async () => {
@@ -139,14 +140,14 @@ async function bootHttpsServer(
   );
 
   await new Promise<void>((resolve) => {
-    server!.listen(8080, resolve);
+    server!.listen(serverPort, resolve);
   });
 }
 
 function makeHttpsRequest(options?: https.RequestOptions) {
   return new Promise<string>((resolve, reject) => {
     const request = https.get(
-      "https://localhost:8080",
+      `https://localhost:${serverPort}`,
       options ?? {},
       (response) => {
         let data = "";
