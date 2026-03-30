@@ -38,31 +38,7 @@ test("successful request", async () => {
       outputDirectoryPath: resolve(process.cwd(), "build"),
     });
 
-  // Boot our HTTPS server.
-  server = https.createServer(
-    {
-      // Pass in the server's HTTPS certificate.
-      // The certificate contains the server's public key and other identifying information such as domain name.
-      // It is signed by our custom certificate authority, which we will tell the client to trust. So the client
-      // can later verify the signature on the server certificate is trusted.
-      cert: readFileSync(serverSignedCertPath),
-
-      // Pass in the server's private key.
-      // During the TLS handshake, the server will prove it is the legitimate holder of the certificate by proving
-      // it owns the private key corresponding to the public key embedded in the certificate.
-      // It does this by signing fresh handshake data with its private key, which the client can then
-      // verify using the public key embedded in the certificate.
-      key: readFileSync(serverPrivateKeyPath),
-    },
-    function handleRequest(_request, response) {
-      response.writeHead(200);
-      response.end("HTTPS response");
-    },
-  );
-
-  await new Promise<void>((resolve) => {
-    server!.listen(8080, resolve);
-  });
+  await bootHttpsServer(serverSignedCertPath, serverPrivateKeyPath);
 
   // Check we can make a HTTPS request.
   await new Promise<void>((resolve, reject) => {
@@ -106,31 +82,7 @@ test("server certificate is not signed by a trusted root certificate", async () 
       outputDirectoryPath: resolve(process.cwd(), "build"),
     });
 
-  // Boot our HTTPS server.
-  server = https.createServer(
-    {
-      // Pass in the server's HTTPS certificate.
-      // The certificate contains the server's public key and other identifying information such as domain name.
-      // It is signed by our custom certificate authority, which we will tell the client to trust. So the client
-      // can later verify the signature on the server certificate is trusted.
-      cert: readFileSync(serverSignedCertPath),
-
-      // Pass in the server's private key.
-      // During the TLS handshake, the server will prove it is the legitimate holder of the certificate by proving
-      // it owns the private key corresponding to the public key embedded in the certificate.
-      // It does this by signing fresh handshake data with its private key, which the client can then
-      // verify using the public key embedded in the certificate.
-      key: readFileSync(serverPrivateKeyPath),
-    },
-    function handleRequest(_request, response) {
-      response.writeHead(200);
-      response.end("HTTPS response");
-    },
-  );
-
-  await new Promise<void>((resolve) => {
-    server!.listen(8080, resolve);
-  });
+  await bootHttpsServer(serverSignedCertPath, serverPrivateKeyPath);
 
   // Check the HTTPS request fails because the server certificate is not signed by a trusted root certificate.
   expect(
@@ -160,20 +112,7 @@ test("server certificate is signed correctly, but hostname does not match the re
       serverDnsNames: ["example.test"],
     });
 
-  server = https.createServer(
-    {
-      cert: readFileSync(serverSignedCertPath),
-      key: readFileSync(serverPrivateKeyPath),
-    },
-    function handleRequest(_request, response) {
-      response.writeHead(200);
-      response.end("HTTPS response");
-    },
-  );
-
-  await new Promise<void>((resolve) => {
-    server!.listen(8080, resolve);
-  });
+  await bootHttpsServer(serverSignedCertPath, serverPrivateKeyPath);
 
   expect(
     new Promise<void>((resolve, reject) => {
@@ -192,3 +131,33 @@ test("server certificate is signed correctly, but hostname does not match the re
     message: expect.stringContaining("does not match certificate's altnames"),
   });
 });
+
+async function bootHttpsServer(
+  serverSignedCertPath: string,
+  serverPrivateKeyPath: string,
+) {
+  server = https.createServer(
+    {
+      // Pass in the server's HTTPS certificate.
+      // The certificate contains the server's public key and other identifying information such as domain name.
+      // It is signed by our custom certificate authority, which we will tell the client to trust. So the client
+      // can later verify the signature on the server certificate is trusted.
+      cert: readFileSync(serverSignedCertPath),
+
+      // Pass in the server's private key.
+      // During the TLS handshake, the server will prove it is the legitimate holder of the certificate by proving
+      // it owns the private key corresponding to the public key embedded in the certificate.
+      // It does this by signing fresh handshake data with its private key, which the client can then
+      // verify using the public key embedded in the certificate.
+      key: readFileSync(serverPrivateKeyPath),
+    },
+    function handleRequest(_request, response) {
+      response.writeHead(200);
+      response.end("HTTPS response");
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server!.listen(8080, resolve);
+  });
+}
