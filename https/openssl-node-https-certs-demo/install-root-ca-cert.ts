@@ -28,7 +28,7 @@ async function main() {
 
   if (!existsSync(rootCaCertPath)) {
     throw new Error(
-      `Root CA certificate not found at ${rootCaCertPath}. Run generate-certificate-test.ts first to create build output.`,
+      `Root CA certificate not found at ${rootCaCertPath}. Run generate-https-certificates.ts first to create build output.`,
     );
   }
 

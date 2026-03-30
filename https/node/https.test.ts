@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import * as https from "node:https";
 import { resolve } from "node:path";
 import { afterEach, expect, test } from "vitest";
-import { generateCertificateTest } from "../openssl-node-https-certs-demo/generate-certificate-test.ts";
+import { generateHttpsCertificates } from "../openssl-node-https-certs-demo/generate-https-certificates.ts";
 
 const serverPort = 8080;
 let server: https.Server | undefined;
@@ -29,13 +29,8 @@ afterEach(async () => {
 test("successful request", async () => {
   expect.hasAssertions();
 
-  /* Create:
-      1) A self-signed certificate authority certificate. We will use this as a trusted root certificate.
-      2) A server certificate, signed by our custom CA. And a server private key.
-         These will be used to boot our HTTPS server.
-   */
   const { caRootCertPath, serverPrivateKeyPath, serverSignedCertPath } =
-    await generateCertificateTest({
+    await generateHttpsCertificates({
       outputDirectoryPath: resolve(process.cwd(), "build"),
     });
 
@@ -53,13 +48,8 @@ test("successful request", async () => {
 test("server certificate is not signed by a trusted root certificate", async () => {
   expect.hasAssertions();
 
-  /* Create:
-      1) A self-signed certificate authority certificate.
-      2) A server certificate, signed by our custom CA. And a server private key.
-         These will be used to boot our HTTPS server.
-   */
   const { serverPrivateKeyPath, serverSignedCertPath } =
-    await generateCertificateTest({
+    await generateHttpsCertificates({
       outputDirectoryPath: resolve(process.cwd(), "build"),
     });
 
@@ -79,7 +69,7 @@ test("server certificate is signed correctly, but hostname does not match the re
   expect.hasAssertions();
 
   const { caRootCertPath, serverPrivateKeyPath, serverSignedCertPath } =
-    await generateCertificateTest({
+    await generateHttpsCertificates({
       outputDirectoryPath: resolve(process.cwd(), "build"),
       serverDnsNames: ["example.test"],
     });
@@ -98,7 +88,7 @@ test("server certificate is signed correctly, but certificate has expired", asyn
   expect.hasAssertions();
 
   const { caRootCertPath, serverPrivateKeyPath, serverSignedCertPath } =
-    await generateCertificateTest({
+    await generateHttpsCertificates({
       outputDirectoryPath: resolve(process.cwd(), "build"),
       serverCertificateDays: 0,
       verifyServerCertificateAfterCreation: false,
