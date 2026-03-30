@@ -34,7 +34,9 @@ test("successful request", async () => {
          These will be used to boot our HTTPS server.
    */
   const { caRootCertPath, serverPrivateKeyPath, serverSignedCertPath } =
-    await generateCertificateTest(resolve(process.cwd(), "build"));
+    await generateCertificateTest({
+      outputDirectoryPath: resolve(process.cwd(), "build"),
+    });
 
   // Boot our HTTPS server.
   server = https.createServer(
@@ -100,7 +102,9 @@ test("server certificate is not signed by a trusted root certificate", async () 
          These will be used to boot our HTTPS server.
    */
   const { serverPrivateKeyPath, serverSignedCertPath } =
-    await generateCertificateTest(resolve(process.cwd(), "build"));
+    await generateCertificateTest({
+      outputDirectoryPath: resolve(process.cwd(), "build"),
+    });
 
   // Boot our HTTPS server.
   server = https.createServer(
@@ -129,7 +133,7 @@ test("server certificate is not signed by a trusted root certificate", async () 
   });
 
   // Check the HTTPS request fails because the server certificate is not signed by a trusted root certificate.
-  await expect(
+  expect(
     new Promise<void>((resolve, reject) => {
       const request = https.get(
         "https://localhost:8080",
@@ -144,5 +148,47 @@ test("server certificate is not signed by a trusted root certificate", async () 
   ).rejects.toMatchObject({
     code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
     message: expect.stringContaining("unable to verify the first certificate"),
+  });
+});
+
+test("server certificate is signed correctly, but hostname does not match the requested hostname", async () => {
+  expect.hasAssertions();
+
+  const { caRootCertPath, serverPrivateKeyPath, serverSignedCertPath } =
+    await generateCertificateTest({
+      outputDirectoryPath: resolve(process.cwd(), "build"),
+      serverDnsNames: ["example.test"],
+    });
+
+  server = https.createServer(
+    {
+      cert: readFileSync(serverSignedCertPath),
+      key: readFileSync(serverPrivateKeyPath),
+    },
+    function handleRequest(_request, response) {
+      response.writeHead(200);
+      response.end("HTTPS response");
+    },
+  );
+
+  await new Promise<void>((resolve) => {
+    server!.listen(8080, resolve);
+  });
+
+  expect(
+    new Promise<void>((resolve, reject) => {
+      const request = https.get(
+        "https://localhost:8080",
+        { ca: readFileSync(caRootCertPath) },
+        () => {
+          resolve();
+        },
+      );
+
+      request.on("error", reject);
+    }),
+  ).rejects.toMatchObject({
+    code: "ERR_TLS_CERT_ALTNAME_INVALID",
+    message: expect.stringContaining("does not match certificate's altnames"),
   });
 });

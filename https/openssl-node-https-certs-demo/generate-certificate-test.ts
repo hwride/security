@@ -1,14 +1,17 @@
 import { existsSync } from "node:fs";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { openssl } from "../openssl-node/openssl-node.ts";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-
-const currentDirectoryPath = dirname(fileURLToPath(import.meta.url));
 
 if (isMainModule()) {
   generateCertificateTest().catch(handleFatalError);
 }
+
+type GenerateCertificateTestOptions = {
+  outputDirectoryPath?: string;
+  serverDnsNames?: string[];
+};
 
 type GenerateCertificateTestResult = {
   caPrivateKeyPath: string;
@@ -31,9 +34,10 @@ type GenerateCertificateTestResult = {
  *    which includes checking the signature on the server certificate using the CA public key.
  *    TLS clients will also check that the certificate's hostname matches the hostname they requested.
  */
-export async function generateCertificateTest(
+export async function generateCertificateTest({
   outputDirectoryPath = resolve(process.cwd(), "build"),
-): Promise<GenerateCertificateTestResult> {
+  serverDnsNames = ["localhost"],
+}: GenerateCertificateTestOptions = {}): Promise<GenerateCertificateTestResult> {
   // Setup directories.
   await prepareDirectories(outputDirectoryPath);
 
@@ -55,6 +59,7 @@ export async function generateCertificateTest(
   // Certificate authority creates a signed certificate from the certificate signing request.
   const serverSignedCertPath = await createSignedCertificateFromCsr(
     outputDirectoryPath,
+    serverDnsNames,
     caRootCertPath,
     caPrivateKeyPath,
     serverCsrPath,
@@ -181,11 +186,16 @@ async function generateCertificateSigningRequest(
 
 async function createSignedCertificateFromCsr(
   outputDirectoryPath: string,
+  serverDnsNames: string[],
   caRootCertPath: string,
   caPrivateKeyPath: string,
   serverCsrPath: string,
 ) {
-  const serverCertificateExtensionsPath = join(currentDirectoryPath, "v3.ext");
+  const serverCertificateExtensionsPath =
+    await writeServerCertificateExtensionsFile(
+    outputDirectoryPath,
+    serverDnsNames,
+  );
   const serverSignedCertPath = join(
     outputDirectoryPath,
     "server",
@@ -240,4 +250,36 @@ function handleFatalError(error: unknown) {
 
 function isMainModule() {
   return process.argv[1] === fileURLToPath(import.meta.url);
+}
+
+async function writeServerCertificateExtensionsFile(
+  outputDirectoryPath: string,
+  serverDnsNames: string[],
+) {
+  const serverCertificateExtensionsPath = join(
+    outputDirectoryPath,
+    "server",
+    "v3.ext",
+  );
+  const altNames = serverDnsNames
+    .map((serverDnsName, index) => `DNS.${index + 1} = ${serverDnsName}`)
+    .join("\n");
+
+  await writeFile(
+    serverCertificateExtensionsPath,
+    `# Point back to the CA key that signed this certificate.
+authorityKeyIdentifier=keyid,issuer
+# Mark this as a leaf certificate, not a CA.
+basicConstraints=CA:FALSE
+# Allow normal TLS leaf-certificate key uses.
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+# List the hostname this certificate is valid for.
+subjectAltName = @alt_names
+
+[alt_names]
+${altNames}
+`,
+  );
+
+  return serverCertificateExtensionsPath;
 }
