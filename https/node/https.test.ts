@@ -1,8 +1,11 @@
 import { get } from "node:https";
 import { expect, test } from "vitest";
+import { generateCertificateTest } from "../openssl-node-https-certs-demo/generate-certificate-test.ts";
 
 test("https", async () => {
   expect.hasAssertions();
+
+  await generateCertificateTest();
 
   const { server, serverListening } = await import("./https-server.ts");
   await serverListening;
