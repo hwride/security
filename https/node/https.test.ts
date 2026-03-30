@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import * as https from "node:https";
 import { resolve } from "node:path";
 import { afterEach, expect, test } from "vitest";
-import { generateHttpsCertificates } from "../openssl-node-https-certs-demo/generate-https-certificates.ts";
+import { generateHttpsCertificates } from "../generate-https-certs-openssl-node/generate-https-certificates.ts";
 
 const serverPort = 8080;
 let server: https.Server | undefined;
