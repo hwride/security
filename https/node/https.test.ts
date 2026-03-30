@@ -1,8 +1,29 @@
 import { readFileSync } from "node:fs";
 import * as https from "node:https";
 import { resolve } from "node:path";
-import { expect, test } from "vitest";
+import { afterEach, expect, test } from "vitest";
 import { generateCertificateTest } from "../openssl-node-https-certs-demo/generate-certificate-test.ts";
+
+let server: https.Server | undefined;
+
+afterEach(async () => {
+  if (!server) {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    server!.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
+
+  server = undefined;
+});
 
 test("successful request", async () => {
   expect.hasAssertions();
@@ -16,7 +37,7 @@ test("successful request", async () => {
     await generateCertificateTest(resolve(process.cwd(), "build"));
 
   // Boot our HTTPS server.
-  const server = https.createServer(
+  server = https.createServer(
     {
       // Pass in the server's HTTPS certificate.
       // The certificate contains the server's public key and other identifying information such as domain name.
@@ -38,7 +59,7 @@ test("successful request", async () => {
   );
 
   await new Promise<void>((resolve) => {
-    server.listen(8080, resolve);
+    server!.listen(8080, resolve);
   });
 
   // Check we can make a HTTPS request.
@@ -68,17 +89,6 @@ test("successful request", async () => {
 
     request.on("error", reject);
   });
-
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-
-      resolve();
-    });
-  });
 });
 
 test("server certificate is not signed by a trusted root certificate", async () => {
@@ -93,7 +103,7 @@ test("server certificate is not signed by a trusted root certificate", async () 
     await generateCertificateTest(resolve(process.cwd(), "build"));
 
   // Boot our HTTPS server.
-  const server = https.createServer(
+  server = https.createServer(
     {
       // Pass in the server's HTTPS certificate.
       // The certificate contains the server's public key and other identifying information such as domain name.
@@ -115,7 +125,7 @@ test("server certificate is not signed by a trusted root certificate", async () 
   );
 
   await new Promise<void>((resolve) => {
-    server.listen(8080, resolve);
+    server!.listen(8080, resolve);
   });
 
   // Check the HTTPS request fails because the server certificate is not signed by a trusted root certificate.
@@ -134,16 +144,5 @@ test("server certificate is not signed by a trusted root certificate", async () 
   ).rejects.toMatchObject({
     code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
     message: expect.stringContaining("unable to verify the first certificate"),
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-
-      resolve();
-    });
   });
 });
