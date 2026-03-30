@@ -11,6 +11,8 @@ if (isMainModule()) {
 type GenerateCertificateTestOptions = {
   outputDirectoryPath?: string;
   serverDnsNames?: string[];
+  serverCertificateDays?: number;
+  verifyServerCertificateAfterCreation?: boolean;
 };
 
 type GenerateCertificateTestResult = {
@@ -37,6 +39,8 @@ type GenerateCertificateTestResult = {
 export async function generateCertificateTest({
   outputDirectoryPath = resolve(process.cwd(), "build"),
   serverDnsNames = ["localhost"],
+  serverCertificateDays = 5,
+  verifyServerCertificateAfterCreation = true,
 }: GenerateCertificateTestOptions = {}): Promise<GenerateCertificateTestResult> {
   // Setup directories.
   await prepareDirectories(outputDirectoryPath);
@@ -60,13 +64,16 @@ export async function generateCertificateTest({
   const serverSignedCertPath = await createSignedCertificateFromCsr(
     outputDirectoryPath,
     serverDnsNames,
+    serverCertificateDays,
     caRootCertPath,
     caPrivateKeyPath,
     serverCsrPath,
   );
 
   // Check our certificate can be verified from the certificate authority.
-  await verifyServerCertificate(caRootCertPath, serverSignedCertPath);
+  if (verifyServerCertificateAfterCreation) {
+    await verifyServerCertificate(caRootCertPath, serverSignedCertPath);
+  }
 
   return {
     caPrivateKeyPath,
@@ -187,15 +194,16 @@ async function generateCertificateSigningRequest(
 async function createSignedCertificateFromCsr(
   outputDirectoryPath: string,
   serverDnsNames: string[],
+  serverCertificateDays: number,
   caRootCertPath: string,
   caPrivateKeyPath: string,
   serverCsrPath: string,
 ) {
   const serverCertificateExtensionsPath =
     await writeServerCertificateExtensionsFile(
-    outputDirectoryPath,
-    serverDnsNames,
-  );
+      outputDirectoryPath,
+      serverDnsNames,
+    );
   const serverSignedCertPath = join(
     outputDirectoryPath,
     "server",
@@ -215,9 +223,9 @@ async function createSignedCertificateFromCsr(
     "-CAcreateserial",
     "-out",
     serverSignedCertPath,
-    // The certificate is valid for 5 days.
+    // The certificate is valid for the requested number of days.
     "-days",
-    "5",
+    String(serverCertificateDays),
     "-sha256",
     // -extfile is required to assign Subject Alternative Name which Chrome requires to trust an SSL certificate.
     "-extfile",

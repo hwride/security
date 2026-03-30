@@ -132,6 +132,36 @@ test("server certificate is signed correctly, but hostname does not match the re
   });
 });
 
+test("server certificate is signed correctly, but certificate has expired", async () => {
+  expect.hasAssertions();
+
+  const { caRootCertPath, serverPrivateKeyPath, serverSignedCertPath } =
+    await generateCertificateTest({
+      outputDirectoryPath: resolve(process.cwd(), "build"),
+      serverCertificateDays: 0,
+      verifyServerCertificateAfterCreation: false,
+    });
+
+  await bootHttpsServer(serverSignedCertPath, serverPrivateKeyPath);
+
+  expect(
+    new Promise<void>((resolve, reject) => {
+      const request = https.get(
+        "https://localhost:8080",
+        { ca: readFileSync(caRootCertPath) },
+        () => {
+          resolve();
+        },
+      );
+
+      request.on("error", reject);
+    }),
+  ).rejects.toMatchObject({
+    code: "CERT_HAS_EXPIRED",
+    message: expect.stringContaining("certificate has expired"),
+  });
+});
+
 async function bootHttpsServer(
   serverSignedCertPath: string,
   serverPrivateKeyPath: string,
