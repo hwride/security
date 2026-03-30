@@ -1,0 +1,1 @@
+Contains a basic util for invoking openssl via Node.
