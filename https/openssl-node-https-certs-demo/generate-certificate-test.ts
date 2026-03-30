@@ -15,7 +15,8 @@ async function main() {
 
   // Server setup.
   const serverPrivateKeyPath = await generateServerPrivateKey();
-  const serverCsrPath = await generateCertificateSigningRequest(serverPrivateKeyPath);
+  const serverCsrPath =
+    await generateCertificateSigningRequest(serverPrivateKeyPath);
 
   // Certificate authority creates a signed certificate from the certificate signing request.
   const serverSignedCertPath = await createSignedCertificateFromCsr(
@@ -55,9 +56,7 @@ async function generateCaPrivateKey() {
   return caPrivateKeyPath;
 }
 
-async function generateCaRootCertificate(
-  caPrivateKeyPath: string,
-) {
+async function generateCaRootCertificate(caPrivateKeyPath: string) {
   const caRootCertPath = join(buildDir, "certificate-authority", "ca-root.crt");
   console.log("");
   console.log("Generating CA root certificate...");
@@ -96,7 +95,11 @@ async function generateCaRootCertificate(
 }
 
 async function generateServerPrivateKey() {
-  const serverPrivateKeyPath = join(buildDir, "server", "server-private-key.key");
+  const serverPrivateKeyPath = join(
+    buildDir,
+    "server",
+    "server-private-key.key",
+  );
   console.log("");
   console.log("-- Setting up Server --");
   console.log("Generating server private key...");
@@ -106,9 +109,7 @@ async function generateServerPrivateKey() {
   return serverPrivateKeyPath;
 }
 
-async function generateCertificateSigningRequest(
-  serverPrivateKeyPath: string,
-) {
+async function generateCertificateSigningRequest(serverPrivateKeyPath: string) {
   const serverCsrPath = join(buildDir, "server", "server.csr");
   console.log("");
   console.log("Generating certificate signing request...");
@@ -132,10 +133,7 @@ async function createSignedCertificateFromCsr(
   caPrivateKeyPath: string,
   serverCsrPath: string,
 ) {
-  const serverCertificateExtensionsPath = resolve(
-    process.cwd(),
-    "../openssl-https-certs-demo/certificate-authority/v3.ext",
-  );
+  const serverCertificateExtensionsPath = resolve(process.cwd(), "v3.ext");
   const serverSignedCertPath = join(buildDir, "server", "signed-cert.crt");
   console.log("");
   console.log("CA creating signed certificate from CSR...");
@@ -155,6 +153,7 @@ async function createSignedCertificateFromCsr(
     "-days",
     "5",
     "-sha256",
+    // -extfile is required to assign Subject Alternative Name which Chrome requires to trust an SSL certificate.
     "-extfile",
     serverCertificateExtensionsPath,
   ]);
