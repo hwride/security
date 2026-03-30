@@ -5,17 +5,17 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 if (isMainModule()) {
-  generateCertificateTest().catch(handleFatalError);
+  generateHttpsCertificates().catch(handleFatalError);
 }
 
-type GenerateCertificateTestOptions = {
+type GenerateHttpsCertificatesOptions = {
   outputDirectoryPath?: string;
   serverDnsNames?: string[];
   serverCertificateDays?: number;
   verifyServerCertificateAfterCreation?: boolean;
 };
 
-type GenerateCertificateTestResult = {
+type GenerateHttpsCertificatesResult = {
   caPrivateKeyPath: string;
   caRootCertPath: string;
   serverPrivateKeyPath: string;
@@ -36,12 +36,12 @@ type GenerateCertificateTestResult = {
  *    which includes checking the signature on the server certificate using the CA public key.
  *    TLS clients will also check that the certificate's hostname matches the hostname they requested.
  */
-export async function generateCertificateTest({
+export async function generateHttpsCertificates({
   outputDirectoryPath = resolve(process.cwd(), "build"),
   serverDnsNames = ["localhost"],
   serverCertificateDays = 5,
   verifyServerCertificateAfterCreation = true,
-}: GenerateCertificateTestOptions = {}): Promise<GenerateCertificateTestResult> {
+}: GenerateHttpsCertificatesOptions = {}): Promise<GenerateHttpsCertificatesResult> {
   // Setup directories.
   await prepareDirectories(outputDirectoryPath);
 

@@ -7,7 +7,7 @@
     "target": "es2022"
   },
   "include": [
-    "generate-certificate-test.ts",
+    "generate-https-certificates.ts",
     "install-root-ca-cert.ts",
     "../openssl-node/openssl-node.ts"
   ]
