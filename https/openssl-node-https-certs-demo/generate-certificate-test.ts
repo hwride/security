@@ -18,6 +18,19 @@ type GenerateCertificateTestResult = {
   serverSignedCertPath: string;
 };
 
+/**
+ * Some test code calling the openssl CLI tool to simulate the entire flow for
+ * generating a valid HTTPS certificate:
+ * 1) Create a certificate authority private key.
+ * 2) Create a certificate authority root certificate, signed by the CA's private key.
+ * 3) Create a server private key.
+ * 4) Create a server certificate signing request, signed by the server's private key.
+ * 5) Create a certificate for the server from the certificate signing request,
+ *    signed by the certificate authority's private key.
+ * 6) Verify the server certificate chains back to the certificate authority certificate,
+ *    which includes checking the signature on the server certificate using the CA public key.
+ *    TLS clients will also check that the certificate's hostname matches the hostname they requested.
+ */
 export async function generateCertificateTest(
   outputDirectoryPath = resolve(process.cwd(), "build"),
 ): Promise<GenerateCertificateTestResult> {
