@@ -3,7 +3,7 @@ import * as https from "node:https";
 import { resolve } from "node:path";
 import { afterEach, expect, test } from "vitest";
 import { generateCa } from "../generate-https-certs-openssl-node/generate-ca.ts";
-import { generateHttpsCertificates } from "../generate-https-certs-openssl-node/generate-https-certificates.ts";
+import { issueCertificate } from "../generate-https-certs-openssl-node/issue-cert.ts";
 
 const serverPort = 8080;
 let server: https.Server | undefined;
@@ -30,10 +30,10 @@ afterEach(async () => {
 test("successful request", async () => {
   expect.hasAssertions();
 
-  const { caRootCertPath, serverPrivateKeyPath, serverSignedCertPath } =
-    await generateServerCertificates();
+  const { caRootCertPath, privateKeyPath, certPath } =
+    await generateCertificates();
 
-  await bootHttpsServer(serverSignedCertPath, serverPrivateKeyPath);
+  await bootHttpsServer(certPath, privateKeyPath);
 
   const responseBody = await makeHttpsRequest({
     ca: readFileSync(caRootCertPath),
@@ -44,10 +44,9 @@ test("successful request", async () => {
 test("server certificate is not signed by a trusted root certificate", async () => {
   expect.hasAssertions();
 
-  const { serverPrivateKeyPath, serverSignedCertPath } =
-    await generateServerCertificates();
+  const { privateKeyPath, certPath } = await generateCertificates();
 
-  await bootHttpsServer(serverSignedCertPath, serverPrivateKeyPath);
+  await bootHttpsServer(certPath, privateKeyPath);
 
   expect(makeHttpsRequest()).rejects.toMatchObject({
     code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
@@ -58,10 +57,10 @@ test("server certificate is not signed by a trusted root certificate", async () 
 test("server certificate is signed correctly, but hostname does not match the requested hostname", async () => {
   expect.hasAssertions();
 
-  const { caRootCertPath, serverPrivateKeyPath, serverSignedCertPath } =
-    await generateServerCertificates({ serverDnsNames: ["example.test"] });
+  const { caRootCertPath, privateKeyPath, certPath } =
+    await generateCertificates({ dnsNames: ["example.test"] });
 
-  await bootHttpsServer(serverSignedCertPath, serverPrivateKeyPath);
+  await bootHttpsServer(certPath, privateKeyPath);
 
   expect(
     makeHttpsRequest({ ca: readFileSync(caRootCertPath) }),
@@ -74,13 +73,13 @@ test("server certificate is signed correctly, but hostname does not match the re
 test("server certificate is signed correctly, but certificate has expired", async () => {
   expect.hasAssertions();
 
-  const { caRootCertPath, serverPrivateKeyPath, serverSignedCertPath } =
-    await generateServerCertificates({
-      serverCertificateDays: 0,
-      verifyServerCertificateAfterCreation: false,
+  const { caRootCertPath, privateKeyPath, certPath } =
+    await generateCertificates({
+      certificateDays: 0,
+      verifyCertificateAfterCreation: false,
     });
 
-  await bootHttpsServer(serverSignedCertPath, serverPrivateKeyPath);
+  await bootHttpsServer(certPath, privateKeyPath);
 
   expect(
     makeHttpsRequest({ ca: readFileSync(caRootCertPath) }),
@@ -90,28 +89,28 @@ test("server certificate is signed correctly, but certificate has expired", asyn
   });
 });
 
-async function generateServerCertificates(
-  options: Parameters<typeof generateHttpsCertificates>[0] = {},
+async function generateCertificates(
+  options: Parameters<typeof issueCertificate>[0] = {},
 ) {
   const caDirectoryPath = resolve(process.cwd(), "build-ca");
-  const serverDirectoryPath = resolve(process.cwd(), "build-server");
+  const issuedCertDirectoryPath = resolve(process.cwd(), "build-issued-cert");
 
   await generateCa({ outputDirectoryPath: caDirectoryPath });
-  return generateHttpsCertificates({
-    outputDirectoryPath: serverDirectoryPath,
+  return issueCertificate({
+    outputDirectoryPath: issuedCertDirectoryPath,
     caDirectoryPath,
     ...options,
   });
 }
 
 async function bootHttpsServer(
-  serverSignedCertPath: string,
-  serverPrivateKeyPath: string,
+  certPath: string,
+  privateKeyPath: string,
 ) {
   server = https.createServer(
     {
-      cert: readFileSync(serverSignedCertPath),
-      key: readFileSync(serverPrivateKeyPath),
+      cert: readFileSync(certPath),
+      key: readFileSync(privateKeyPath),
     },
     function handleRequest(_request, response) {
       response.writeHead(200);

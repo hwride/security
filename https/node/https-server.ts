@@ -7,23 +7,23 @@ const serverPort = 8080;
 main().catch(handleFatalError);
 
 async function main() {
-  const buildDir = resolve(process.cwd(), "build-server");
-  const serverPrivateKeyPath = resolve(buildDir, "server-private-key.key");
-  const serverSignedCertPath = resolve(buildDir, "signed-cert.crt");
+  const buildDir = resolve(process.cwd(), "build-issued-cert");
+  const privateKeyPath = resolve(buildDir, "private-key.key");
+  const certPath = resolve(buildDir, "cert.crt");
 
   assertFileExists(
-    serverPrivateKeyPath,
-    "Server private key not found. Generate certificates into ./build-server first.",
+    privateKeyPath,
+    "Private key not found. Generate certificates into ./build-issued-cert first.",
   );
   assertFileExists(
-    serverSignedCertPath,
-    "Server certificate not found. Generate certificates into ./build-server first.",
+    certPath,
+    "Certificate not found. Generate certificates into ./build-issued-cert first.",
   );
 
   const server = https.createServer(
     {
-      cert: readFileSync(serverSignedCertPath),
-      key: readFileSync(serverPrivateKeyPath),
+      cert: readFileSync(certPath),
+      key: readFileSync(privateKeyPath),
     },
     function handleRequest(_request, response) {
       response.writeHead(200);
@@ -36,8 +36,8 @@ async function main() {
   });
 
   console.log(`HTTPS server listening at https://localhost:${serverPort}`);
-  console.log(`Using certificate: ${serverSignedCertPath}`);
-  console.log(`Using private key: ${serverPrivateKeyPath}`);
+  console.log(`Using certificate: ${certPath}`);
+  console.log(`Using private key: ${privateKeyPath}`);
 
   process.on("SIGINT", () => {
     server.close(() => {
