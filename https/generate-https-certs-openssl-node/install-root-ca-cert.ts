@@ -14,11 +14,7 @@ import { promisify } from "node:util";
 const execFile = promisify(execFileCallback);
 
 const buildDirPath = resolve(process.cwd(), "build-ca");
-const rootCaCertPath = join(
-  buildDirPath,
-  "certificate-authority",
-  "ca-root.crt",
-);
+const rootCaCertPath = join(buildDirPath, "ca-root.crt");
 const loginKeychainPath = join(
   homedir(),
   "Library",

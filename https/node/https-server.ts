@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import * as https from "node:https";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 
 const serverPort = 8080;
 
@@ -8,12 +8,8 @@ main().catch(handleFatalError);
 
 async function main() {
   const buildDir = resolve(process.cwd(), "build-server");
-  const serverPrivateKeyPath = join(
-    buildDir,
-    "server",
-    "server-private-key.key",
-  );
-  const serverSignedCertPath = join(buildDir, "server", "signed-cert.crt");
+  const serverPrivateKeyPath = resolve(buildDir, "server-private-key.key");
+  const serverSignedCertPath = resolve(buildDir, "signed-cert.crt");
 
   assertFileExists(
     serverPrivateKeyPath,

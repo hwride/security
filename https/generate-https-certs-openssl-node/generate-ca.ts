@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { openssl } from "../openssl-node/openssl-node.ts";
 import { fileURLToPath } from "node:url";
 
@@ -22,16 +22,8 @@ export async function generateCa({
 }: GenerateCaOptions = {}): Promise<GenerateCaResult> {
   await prepareCaDirectory(outputDirectoryPath);
 
-  const caPrivateKeyPath = join(
-    outputDirectoryPath,
-    "certificate-authority",
-    "ca-private-key.key",
-  );
-  const caRootCertPath = join(
-    outputDirectoryPath,
-    "certificate-authority",
-    "ca-root.crt",
-  );
+  const caPrivateKeyPath = resolve(outputDirectoryPath, "ca-private-key.key");
+  const caRootCertPath = resolve(outputDirectoryPath, "ca-root.crt");
 
   console.log("");
   console.log("-- Setting up Certificate Authority (CA) --");
@@ -68,13 +60,12 @@ export async function generateCa({
 }
 
 async function prepareCaDirectory(outputDirectoryPath: string) {
-  const caDirPath = join(outputDirectoryPath, "certificate-authority");
   if (existsSync(outputDirectoryPath)) {
     console.warn("Existing build-ca directory detected, removing...");
     await rm(outputDirectoryPath, { recursive: true, force: true });
   }
 
-  await mkdir(caDirPath, { recursive: true });
+  await mkdir(outputDirectoryPath, { recursive: true });
 }
 
 function isMainModule() {
