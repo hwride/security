@@ -1,7 +1,7 @@
 # Node HTTPS
 ## Run a test HTTPS server
 Run `npm run test`. Our test file will generate appropriate certificates, boot up an HTTPS server,
-and make a valid HTTPS request to that server.
+then make a valid HTTPS request to that server.
 
 ## Run a dev HTTPS server
 1. Run `npm run certgen:generate-certs` to generate CA and server test certificates.
