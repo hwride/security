@@ -25,7 +25,7 @@ const loginKeychainPath = join(
 async function main() {
   if (platform() !== "darwin") {
     throw new Error(
-      `install-root-ca-cert.ts only supports macOS (darwin). Current platform is ${platform()}.`,
+      `install-ca.ts only supports macOS (darwin). Current platform is ${platform()}.`,
     );
   }
 
