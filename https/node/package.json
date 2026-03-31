@@ -1,8 +1,9 @@
 {
   "type": "module",
   "scripts": {
-    "generate-certs": "node ../certgen/generate-ca.ts && node ../certgen/issue-cert.ts",
-    "install-root-ca": "node ../certgen/install-ca.ts",
+    "certgen:generate-certs": "node ../certgen/generate-ca.ts && node ../certgen/issue-cert.ts",
+    "certgen:install-ca": "node ../certgen/install-ca.ts",
+    "certgen:uninstall-ca": "node ../certgen/uninstall-ca.ts",
     "start": "node https-server.ts",
     "test": "vitest run",
     "types": "tsc --noEmit"

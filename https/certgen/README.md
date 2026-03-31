@@ -22,6 +22,11 @@ Output directory `build-ca` containing:
 
 This script will install the generated CA certificate into the system trust store. Currently MacOS only.
 
+## Uninstall Certificate Authority certificate
+`npm run uninstall-ca`
+
+This script will remove the generated CA certificate from the system trust store. Currently MacOS only.
+
 ## Issue TLS Certificate
 `npm run issue-cert`
 
