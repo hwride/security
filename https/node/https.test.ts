@@ -93,9 +93,8 @@ test("server certificate is signed correctly, but certificate has expired", asyn
 async function generateServerCertificates(
   options: Parameters<typeof generateHttpsCertificates>[0] = {},
 ) {
-  const buildPath = resolve(process.cwd(), "build");
-  const caDirectoryPath = resolve(buildPath, "build-ca");
-  const serverDirectoryPath = resolve(buildPath, "build-server");
+  const caDirectoryPath = resolve(process.cwd(), "build-ca");
+  const serverDirectoryPath = resolve(process.cwd(), "build-server");
 
   await generateCa({ outputDirectoryPath: caDirectoryPath });
   return generateHttpsCertificates({

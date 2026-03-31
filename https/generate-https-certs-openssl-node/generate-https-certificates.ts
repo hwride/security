@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { openssl } from "../openssl-node/openssl-node.ts";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 if (isMainModule()) {
@@ -39,12 +39,8 @@ export async function generateHttpsCertificates({
   serverCertificateDays = 5,
   verifyServerCertificateAfterCreation = true,
 }: GenerateHttpsCertificatesOptions = {}): Promise<GenerateHttpsCertificatesResult> {
-  const caPrivateKeyPath = join(
-    caDirectoryPath,
-    "certificate-authority",
-    "ca-private-key.key",
-  );
-  const caRootCertPath = join(caDirectoryPath, "certificate-authority", "ca-root.crt");
+  const caPrivateKeyPath = resolve(caDirectoryPath, "ca-private-key.key");
+  const caRootCertPath = resolve(caDirectoryPath, "ca-root.crt");
 
   assertFileExists(
     caPrivateKeyPath,
@@ -87,19 +83,17 @@ export async function generateHttpsCertificates({
 }
 
 async function prepareServerDirectory(outputDirectoryPath: string) {
-  const serverDirPath = join(outputDirectoryPath, "server");
   if (existsSync(outputDirectoryPath)) {
     console.warn("Existing build-server directory detected, removing...");
     await rm(outputDirectoryPath, { recursive: true, force: true });
   }
 
-  await mkdir(serverDirPath, { recursive: true });
+  await mkdir(outputDirectoryPath, { recursive: true });
 }
 
 async function generateServerPrivateKey(outputDirectoryPath: string) {
-  const serverPrivateKeyPath = join(
+  const serverPrivateKeyPath = resolve(
     outputDirectoryPath,
-    "server",
     "server-private-key.key",
   );
   console.log("");
@@ -115,7 +109,7 @@ async function generateCertificateSigningRequest(
   outputDirectoryPath: string,
   serverPrivateKeyPath: string,
 ) {
-  const serverCsrPath = join(outputDirectoryPath, "server", "server.csr");
+  const serverCsrPath = resolve(outputDirectoryPath, "server.csr");
   console.log("");
   console.log("Generating certificate signing request...");
   await openssl("req", [
@@ -145,11 +139,7 @@ async function createSignedCertificateFromCsr(
       outputDirectoryPath,
       serverDnsNames,
     );
-  const serverSignedCertPath = join(
-    outputDirectoryPath,
-    "server",
-    "signed-cert.crt",
-  );
+  const serverSignedCertPath = resolve(outputDirectoryPath, "signed-cert.crt");
   console.log("");
   console.log("CA creating signed certificate from CSR...");
   await openssl("x509", [
@@ -178,9 +168,8 @@ async function writeServerCertificateExtensionsFile(
   outputDirectoryPath: string,
   serverDnsNames: string[],
 ) {
-  const serverCertificateExtensionsPath = join(
+  const serverCertificateExtensionsPath = resolve(
     outputDirectoryPath,
-    "server",
     "server-v3.ext",
   );
 
