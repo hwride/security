@@ -8,7 +8,7 @@
   },
   "include": [
     "generate-ca.ts",
-    "generate-https-certificates.ts",
+    "issue-cert.ts",
     "install-root-ca-cert.ts",
     "../openssl-node/openssl-node.ts"
   ]
