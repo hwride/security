@@ -3,6 +3,11 @@ import { mkdir, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { openssl } from "../openssl-node/openssl-node.ts";
 import { fileURLToPath } from "node:url";
+import {
+  getCaPrivateKeyPath,
+  getDefaultBuildCaPath,
+  getRootCaCertPath,
+} from "./util/paths.ts";
 
 if (isMainModule()) {
   generateCa().catch(handleFatalError);
@@ -18,12 +23,12 @@ type GenerateCaResult = {
 };
 
 export async function generateCa({
-  outputDirectoryPath = resolve(process.cwd(), "build-ca"),
+  outputDirectoryPath = getDefaultBuildCaPath(),
 }: GenerateCaOptions = {}): Promise<GenerateCaResult> {
   await prepareCaDirectory(outputDirectoryPath);
 
-  const caPrivateKeyPath = resolve(outputDirectoryPath, "ca-private-key.key");
-  const caRootCertPath = resolve(outputDirectoryPath, "ca-root.crt");
+  const caPrivateKeyPath = getCaPrivateKeyPath(outputDirectoryPath);
+  const caRootCertPath = getRootCaCertPath(outputDirectoryPath);
 
   console.log("");
   console.log("-- Setting up Certificate Authority (CA) --");

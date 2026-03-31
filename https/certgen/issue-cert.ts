@@ -3,6 +3,16 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { openssl } from "../openssl-node/openssl-node.ts";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  getCaPrivateKeyPath,
+  getDefaultBuildCaPath,
+  getDefaultBuildIssuedCertPath,
+  getIssuedCertCsrPath,
+  getIssuedCertExtensionsPath,
+  getIssuedCertPath,
+  getIssuedCertPrivateKeyPath,
+  getRootCaCertPath,
+} from "./util/paths.ts";
 
 if (isMainModule()) {
   issueCertificate().catch(handleFatalError);
@@ -33,14 +43,14 @@ type IssueCertificateResult = {
  * 4) Verify the certificate chains back to the certificate authority certificate.
  */
 export async function issueCertificate({
-  outputDirectoryPath = resolve(process.cwd(), "build-issued-cert"),
-  caDirectoryPath = resolve(process.cwd(), "build-ca"),
+  outputDirectoryPath = getDefaultBuildIssuedCertPath(),
+  caDirectoryPath = getDefaultBuildCaPath(),
   dnsNames = ["localhost"],
   certificateDays = 5,
   verifyCertificateAfterCreation = true,
 }: IssueCertificateOptions = {}): Promise<IssueCertificateResult> {
-  const caPrivateKeyPath = resolve(caDirectoryPath, "ca-private-key.key");
-  const caRootCertPath = resolve(caDirectoryPath, "ca-root.crt");
+  const caPrivateKeyPath = getCaPrivateKeyPath(caDirectoryPath);
+  const caRootCertPath = getRootCaCertPath(caDirectoryPath);
 
   assertFileExists(
     caPrivateKeyPath,
@@ -96,7 +106,7 @@ async function prepareIssuedCertDirectory(outputDirectoryPath: string) {
 }
 
 async function generatePrivateKey(outputDirectoryPath: string) {
-  const privateKeyPath = resolve(outputDirectoryPath, "private-key.key");
+  const privateKeyPath = getIssuedCertPrivateKeyPath(outputDirectoryPath);
   console.log("");
   console.log("-- Issuing Certificate --");
   console.log("Generating private key...");
@@ -110,7 +120,7 @@ async function generateCertificateSigningRequest(
   outputDirectoryPath: string,
   privateKeyPath: string,
 ) {
-  const certCsrPath = resolve(outputDirectoryPath, "cert.csr");
+  const certCsrPath = getIssuedCertCsrPath(outputDirectoryPath);
   console.log("");
   console.log("Generating certificate signing request...");
   await openssl("req", [
@@ -140,7 +150,7 @@ async function issueCertificateFromCsr(
     outputDirectoryPath,
     dnsNames,
   );
-  const certPath = resolve(outputDirectoryPath, "cert.crt");
+  const certPath = getIssuedCertPath(outputDirectoryPath);
   console.log("");
   console.log("CA creating signed certificate from CSR...");
   // openssl x509 - certificate display and signing command
@@ -174,7 +184,7 @@ async function writeCertificateExtensionsFile(
   outputDirectoryPath: string,
   dnsNames: string[],
 ) {
-  const certExtensionsPath = resolve(outputDirectoryPath, "cert-v3.ext");
+  const certExtensionsPath = getIssuedCertExtensionsPath(outputDirectoryPath);
 
   const subjectAlternativeNames = dnsNames
     .map((dnsName, index) => `DNS.${index + 1}=${dnsName}`)
