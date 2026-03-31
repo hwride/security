@@ -3,6 +3,11 @@
   "scripts": {
     "generate-ca": "node generate-ca.ts",
     "install-ca": "node install-ca.ts",
+    "uninstall-ca": "node uninstall-ca.ts",
     "issue-cert": "node issue-cert.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^5.9.3"
   }
 }

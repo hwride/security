@@ -14,7 +14,7 @@ import { promisify } from "node:util";
 const execFile = promisify(execFileCallback);
 
 const buildDirPath = resolve(process.cwd(), "build-ca");
-const rootCaCertPath = join(buildDirPath, "ca-root.crt");
+const defaultRootCaCertPath = join(buildDirPath, "ca-root.crt");
 const loginKeychainPath = join(
   homedir(),
   "Library",
@@ -22,16 +22,22 @@ const loginKeychainPath = join(
   "login.keychain-db",
 );
 
-async function main() {
+if (import.meta.main) {
+  installCa().catch(handleFatalError);
+}
+
+export async function installCa(certificatePath = defaultRootCaCertPath) {
+  const resolvedCertificatePath = resolve(certificatePath);
+
   if (platform() !== "darwin") {
     throw new Error(
       `install-ca.ts only supports macOS (darwin). Current platform is ${platform()}.`,
     );
   }
 
-  if (!existsSync(rootCaCertPath)) {
+  if (!existsSync(resolvedCertificatePath)) {
     throw new Error(
-      `Root CA certificate not found at ${rootCaCertPath}. Run generate-ca.ts first to create build-ca output.`,
+      `Root CA certificate not found at ${resolvedCertificatePath}. Run generate-ca.ts first to create build-ca output.`,
     );
   }
 
@@ -47,7 +53,7 @@ async function main() {
     "-k",
     loginKeychainPath,
     // Final positional argument is the certificate file to import.
-    rootCaCertPath,
+    resolvedCertificatePath,
   ]);
 
   if (stdout) {
@@ -59,9 +65,6 @@ async function main() {
 
   console.log("Root CA certificate installed successfully.");
 }
-
-main().catch(handleFatalError);
-
 function handleFatalError(error: unknown) {
   console.error(error);
   process.exitCode = 1;

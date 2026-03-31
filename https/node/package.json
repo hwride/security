@@ -3,6 +3,7 @@
   "scripts": {
     "generate-certs": "node ../certgen/generate-ca.ts && node ../certgen/issue-cert.ts",
     "install-root-ca": "node ../certgen/install-ca.ts",
+    "uninstall-root-ca": "node ../certgen/uninstall-ca.ts",
     "start": "node https-server.ts",
     "test": "vitest run",
     "types": "tsc --noEmit"
