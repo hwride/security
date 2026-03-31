@@ -5,11 +5,5 @@
     "outDir": "dist",
     "rewriteRelativeImportExtensions": true,
     "target": "es2022"
-  },
-  "include": [
-    "generate-ca.ts",
-    "issue-cert.ts",
-    "install-ca.ts",
-    "../openssl-node/openssl-node.ts"
-  ]
+  }
 }
