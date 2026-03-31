@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import * as https from "node:https";
 import { resolve } from "node:path";
 import { afterEach, expect, test } from "vitest";
-import { generateCa } from "../generate-https-certs-openssl-node/generate-ca.ts";
-import { issueCertificate } from "../generate-https-certs-openssl-node/issue-cert.ts";
+import { generateCa } from "../certgen/generate-ca.ts";
+import { issueCertificate } from "../certgen/issue-cert.ts";
 
 const serverPort = 8080;
 let server: https.Server | undefined;
@@ -103,10 +103,7 @@ async function generateCertificates(
   });
 }
 
-async function bootHttpsServer(
-  certPath: string,
-  privateKeyPath: string,
-) {
+async function bootHttpsServer(certPath: string, privateKeyPath: string) {
   server = https.createServer(
     {
       cert: readFileSync(certPath),
