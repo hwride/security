@@ -53,12 +53,16 @@ export async function issueCertificate({
 
   await prepareIssuedCertDirectory(outputDirectoryPath);
 
+  // Generate private key for this certificate.
   const privateKeyPath = await generatePrivateKey(outputDirectoryPath);
+
+  // Prepare a certificate signing request. This is normally given to a certificate authority.
   const certCsrPath = await generateCertificateSigningRequest(
     outputDirectoryPath,
     privateKeyPath,
   );
 
+  // Certificate authority creates a signed certificate from the certificate signing request.
   const certPath = await issueCertificateFromCsr(
     outputDirectoryPath,
     dnsNames,
@@ -68,6 +72,7 @@ export async function issueCertificate({
     certCsrPath,
   );
 
+  // Check our certificate can be verified from the certificate authority.
   if (verifyCertificateAfterCreation) {
     await verifyCertificate(caRootCertPath, certPath);
   }
@@ -109,6 +114,7 @@ async function generateCertificateSigningRequest(
   console.log("");
   console.log("Generating certificate signing request...");
   await openssl("req", [
+    // The -new option generates a new certificate request.
     "-new",
     "-key",
     privateKeyPath,
@@ -137,6 +143,7 @@ async function issueCertificateFromCsr(
   const certPath = resolve(outputDirectoryPath, "cert.crt");
   console.log("");
   console.log("CA creating signed certificate from CSR...");
+  // openssl x509 - certificate display and signing command
   await openssl("x509", [
     "-req",
     "-in",
@@ -145,12 +152,16 @@ async function issueCertificateFromCsr(
     caRootCertPath,
     "-CAkey",
     caPrivateKeyPath,
+    // OpenSSL option to store a bookkeeping file that stores the next serial number used when this CA
+    // issues certificates
     "-CAcreateserial",
     "-out",
     certPath,
+    // The certificate is valid for the requested number of days.
     "-days",
     String(certificateDays),
     "-sha256",
+    // -extfile is required to assign Subject Alternative Name which Chrome requires to trust an SSL certificate.
     "-extfile",
     certExtensionsPath,
   ]);
@@ -170,9 +181,13 @@ async function writeCertificateExtensionsFile(
     .join("\n");
 
   const extfileContents = [
+    // Point back to the CA key that signed this certificate.
     "authorityKeyIdentifier=keyid,issuer",
+    // Mark this as a leaf certificate, not a CA.
     "basicConstraints=CA:FALSE",
+    // Allow normal TLS leaf-certificate key uses.
     "keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment",
+    // List the hostname this certificate is valid for.
     "subjectAltName = @alt_names",
     "[alt_names]",
     subjectAlternativeNames,
@@ -184,10 +199,7 @@ async function writeCertificateExtensionsFile(
   return certExtensionsPath;
 }
 
-async function verifyCertificate(
-  caRootCertPath: string,
-  certPath: string,
-) {
+async function verifyCertificate(caRootCertPath: string, certPath: string) {
   console.log("");
   console.log("Verifying signed certificate against CA...");
   await openssl("verify", [
