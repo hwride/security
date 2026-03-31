@@ -1,7 +1,7 @@
 {
   "type": "module",
   "scripts": {
-    "generate-certs": "node ../generate-https-certs-openssl-node/generate-https-certificates.ts",
+    "generate-certs": "node ../generate-https-certs-openssl-node/generate-ca.ts && node ../generate-https-certs-openssl-node/generate-https-certificates.ts",
     "install-root-ca": "node ../generate-https-certs-openssl-node/install-root-ca-cert.ts",
     "start": "node https-server.ts",
     "test": "vitest run",

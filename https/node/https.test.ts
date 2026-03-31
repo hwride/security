@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import * as https from "node:https";
 import { resolve } from "node:path";
 import { afterEach, expect, test } from "vitest";
+import { generateCa } from "../generate-https-certs-openssl-node/generate-ca.ts";
 import { generateHttpsCertificates } from "../generate-https-certs-openssl-node/generate-https-certificates.ts";
 
 const serverPort = 8080;
@@ -30,15 +31,10 @@ test("successful request", async () => {
   expect.hasAssertions();
 
   const { caRootCertPath, serverPrivateKeyPath, serverSignedCertPath } =
-    await generateHttpsCertificates({
-      outputDirectoryPath: resolve(process.cwd(), "build"),
-    });
+    await generateServerCertificates();
 
   await bootHttpsServer(serverSignedCertPath, serverPrivateKeyPath);
 
-  // Check we can make a HTTPS request.
-  // Pass our self-signed CA certificate to our HTTPS request as a trusted root.
-  // This will then be used to check the server certificate's signature for authenticity.
   const responseBody = await makeHttpsRequest({
     ca: readFileSync(caRootCertPath),
   });
@@ -49,17 +45,11 @@ test("server certificate is not signed by a trusted root certificate", async () 
   expect.hasAssertions();
 
   const { serverPrivateKeyPath, serverSignedCertPath } =
-    await generateHttpsCertificates({
-      outputDirectoryPath: resolve(process.cwd(), "build"),
-    });
+    await generateServerCertificates();
 
   await bootHttpsServer(serverSignedCertPath, serverPrivateKeyPath);
 
-  // Check the HTTPS request fails because the server certificate is not signed by a trusted root certificate.
-  expect(
-    // Don't include our custom CA cert here, to cause the HTTPS request to fail due to an untrusted signature.
-    makeHttpsRequest(),
-  ).rejects.toMatchObject({
+  expect(makeHttpsRequest()).rejects.toMatchObject({
     code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
     message: expect.stringContaining("unable to verify the first certificate"),
   });
@@ -69,10 +59,7 @@ test("server certificate is signed correctly, but hostname does not match the re
   expect.hasAssertions();
 
   const { caRootCertPath, serverPrivateKeyPath, serverSignedCertPath } =
-    await generateHttpsCertificates({
-      outputDirectoryPath: resolve(process.cwd(), "build"),
-      serverDnsNames: ["example.test"],
-    });
+    await generateServerCertificates({ serverDnsNames: ["example.test"] });
 
   await bootHttpsServer(serverSignedCertPath, serverPrivateKeyPath);
 
@@ -88,8 +75,7 @@ test("server certificate is signed correctly, but certificate has expired", asyn
   expect.hasAssertions();
 
   const { caRootCertPath, serverPrivateKeyPath, serverSignedCertPath } =
-    await generateHttpsCertificates({
-      outputDirectoryPath: resolve(process.cwd(), "build"),
+    await generateServerCertificates({
       serverCertificateDays: 0,
       verifyServerCertificateAfterCreation: false,
     });
@@ -104,23 +90,28 @@ test("server certificate is signed correctly, but certificate has expired", asyn
   });
 });
 
+async function generateServerCertificates(
+  options: Parameters<typeof generateHttpsCertificates>[0] = {},
+) {
+  const buildPath = resolve(process.cwd(), "build");
+  const caDirectoryPath = resolve(buildPath, "build-ca");
+  const serverDirectoryPath = resolve(buildPath, "build-server");
+
+  await generateCa({ outputDirectoryPath: caDirectoryPath });
+  return generateHttpsCertificates({
+    outputDirectoryPath: serverDirectoryPath,
+    caDirectoryPath,
+    ...options,
+  });
+}
+
 async function bootHttpsServer(
   serverSignedCertPath: string,
   serverPrivateKeyPath: string,
 ) {
   server = https.createServer(
     {
-      // Pass in the server's HTTPS certificate.
-      // The certificate contains the server's public key and other identifying information such as domain name.
-      // It is signed by our custom certificate authority, which we will tell the client to trust. So the client
-      // can later verify the signature on the server certificate is trusted.
       cert: readFileSync(serverSignedCertPath),
-
-      // Pass in the server's private key.
-      // During the TLS handshake, the server will prove it is the legitimate holder of the certificate by proving
-      // it owns the private key corresponding to the public key embedded in the certificate.
-      // It does this by signing fresh handshake data with its private key, which the client can then
-      // verify using the public key embedded in the certificate.
       key: readFileSync(serverPrivateKeyPath),
     },
     function handleRequest(_request, response) {

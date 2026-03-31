@@ -7,7 +7,7 @@ const serverPort = 8080;
 main().catch(handleFatalError);
 
 async function main() {
-  const buildDir = resolve(process.cwd(), "build");
+  const buildDir = resolve(process.cwd(), "build-server");
   const serverPrivateKeyPath = join(
     buildDir,
     "server",
@@ -17,11 +17,11 @@ async function main() {
 
   assertFileExists(
     serverPrivateKeyPath,
-    "Server private key not found. Generate certificates into ./build first.",
+    "Server private key not found. Generate certificates into ./build-server first.",
   );
   assertFileExists(
     serverSignedCertPath,
-    "Server certificate not found. Generate certificates into ./build first.",
+    "Server certificate not found. Generate certificates into ./build-server first.",
   );
 
   const server = https.createServer(

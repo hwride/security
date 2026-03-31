@@ -10,6 +10,7 @@ if (isMainModule()) {
 
 type GenerateHttpsCertificatesOptions = {
   outputDirectoryPath?: string;
+  caDirectoryPath?: string;
   serverDnsNames?: string[];
   serverCertificateDays?: number;
   verifyServerCertificateAfterCreation?: boolean;
@@ -24,35 +25,38 @@ type GenerateHttpsCertificatesResult = {
 };
 
 /**
- * Some test code calling the openssl CLI tool to simulate the entire flow for
- * generating a valid HTTPS certificate:
- * 1) Create a certificate authority private key.
- * 2) Create a certificate authority root certificate, signed by the CA's private key.
- * 3) Create a server private key.
- * 4) Create a server certificate signing request, signed by the server's private key.
- * 5) Create a certificate for the server from the certificate signing request,
+ * Generates the server TLS assets from an existing certificate authority (CA):
+ * 1) Create a server private key.
+ * 2) Create a server certificate signing request, signed by the server's private key.
+ * 3) Create a certificate for the server from the certificate signing request,
  *    signed by the certificate authority's private key.
- * 6) Verify the server certificate chains back to the certificate authority certificate,
- *    which includes checking the signature on the server certificate using the CA public key.
- *    TLS clients will also check that the certificate's hostname matches the hostname they requested.
+ * 4) Verify the server certificate chains back to the certificate authority certificate.
  */
 export async function generateHttpsCertificates({
-  outputDirectoryPath = resolve(process.cwd(), "build"),
+  outputDirectoryPath = resolve(process.cwd(), "build-server"),
+  caDirectoryPath = resolve(process.cwd(), "build-ca"),
   serverDnsNames = ["localhost"],
   serverCertificateDays = 5,
   verifyServerCertificateAfterCreation = true,
 }: GenerateHttpsCertificatesOptions = {}): Promise<GenerateHttpsCertificatesResult> {
-  // Setup directories.
-  await prepareDirectories(outputDirectoryPath);
+  const caPrivateKeyPath = join(
+    caDirectoryPath,
+    "certificate-authority",
+    "ca-private-key.key",
+  );
+  const caRootCertPath = join(caDirectoryPath, "certificate-authority", "ca-root.crt");
 
-  // Certificate authority setup.
-  const caPrivateKeyPath = await generateCaPrivateKey(outputDirectoryPath);
-  const caRootCertPath = await generateCaRootCertificate(
-    outputDirectoryPath,
+  assertFileExists(
     caPrivateKeyPath,
+    `CA private key not found at ${caPrivateKeyPath}. Run generate-ca.ts first.`,
+  );
+  assertFileExists(
+    caRootCertPath,
+    `CA root certificate not found at ${caRootCertPath}. Run generate-ca.ts first.`,
   );
 
-  // Server setup.
+  await prepareServerDirectory(outputDirectoryPath);
+
   const serverPrivateKeyPath =
     await generateServerPrivateKey(outputDirectoryPath);
   const serverCsrPath = await generateCertificateSigningRequest(
@@ -60,7 +64,6 @@ export async function generateHttpsCertificates({
     serverPrivateKeyPath,
   );
 
-  // Certificate authority creates a signed certificate from the certificate signing request.
   const serverSignedCertPath = await createSignedCertificateFromCsr(
     outputDirectoryPath,
     serverDnsNames,
@@ -70,7 +73,6 @@ export async function generateHttpsCertificates({
     serverCsrPath,
   );
 
-  // Check our certificate can be verified from the certificate authority.
   if (verifyServerCertificateAfterCreation) {
     await verifyServerCertificate(caRootCertPath, serverSignedCertPath);
   }
@@ -84,74 +86,14 @@ export async function generateHttpsCertificates({
   };
 }
 
-async function prepareDirectories(outputDirectoryPath: string) {
-  const caDirPath = join(outputDirectoryPath, "certificate-authority");
+async function prepareServerDirectory(outputDirectoryPath: string) {
   const serverDirPath = join(outputDirectoryPath, "server");
   if (existsSync(outputDirectoryPath)) {
-    console.warn("Existing build directory detected, removing...");
+    console.warn("Existing build-server directory detected, removing...");
     await rm(outputDirectoryPath, { recursive: true, force: true });
   }
-  await mkdir(caDirPath, { recursive: true });
+
   await mkdir(serverDirPath, { recursive: true });
-}
-
-async function generateCaPrivateKey(outputDirectoryPath: string) {
-  const caPrivateKeyPath = join(
-    outputDirectoryPath,
-    "certificate-authority",
-    "ca-private-key.key",
-  );
-  console.log("");
-  console.log("-- Setting up Certificate Authority (CA) --");
-  console.log("Generating CA private key...");
-  await openssl("genrsa", ["-out", caPrivateKeyPath, "2048"]);
-  console.log(`Created: ${caPrivateKeyPath}`);
-  return caPrivateKeyPath;
-}
-
-async function generateCaRootCertificate(
-  outputDirectoryPath: string,
-  caPrivateKeyPath: string,
-) {
-  const caRootCertPath = join(
-    outputDirectoryPath,
-    "certificate-authority",
-    "ca-root.crt",
-  );
-  console.log("");
-  console.log("Generating CA root certificate...");
-  // openssl req = create and process certificate signing requests (CSRs),
-  //               and generate self-signed certificates.
-  await openssl("req", [
-    // Instead of writing a CSR for a later signing step, create a self-signed X.509 certificate directly.
-    // This means this certificate will be signed with the private key we provide, rather than by a separate
-    // private key owned by a separate certificate authority.
-    "-x509",
-    "-sha256",
-    // The certificate is valid for 5 days.
-    "-days",
-    "5",
-    // Path to our private key, used to sign the certificate.
-    "-key",
-    caPrivateKeyPath,
-    // Path to write our generate certificate to.
-    "-out",
-    caRootCertPath,
-    // basicConstraints: mark this certificate as a CA certificate.
-    "-addext",
-    "basicConstraints=critical,CA:TRUE",
-    // keyUsage: allow this key to sign certificates.
-    "-addext",
-    "keyUsage=critical,keyCertSign",
-    // subjectKeyIdentifier: give the CA key a stable identifier for chain building.
-    "-addext",
-    "subjectKeyIdentifier=hash",
-    "-subj",
-    "/C=UK/ST=London/L=London/O=Test CA Org/OU=IT/CN=test-ca.local",
-  ]);
-  console.log(`Created: ${caRootCertPath}`);
-
-  return caRootCertPath;
 }
 
 async function generateServerPrivateKey(outputDirectoryPath: string) {
@@ -177,7 +119,6 @@ async function generateCertificateSigningRequest(
   console.log("");
   console.log("Generating certificate signing request...");
   await openssl("req", [
-    // The -new option generates a new certificate request.
     "-new",
     "-key",
     serverPrivateKeyPath,
@@ -211,7 +152,6 @@ async function createSignedCertificateFromCsr(
   );
   console.log("");
   console.log("CA creating signed certificate from CSR...");
-  // openssl x509 - certificate display and signing command
   await openssl("x509", [
     "-req",
     "-in",
@@ -223,41 +163,15 @@ async function createSignedCertificateFromCsr(
     "-CAcreateserial",
     "-out",
     serverSignedCertPath,
-    // The certificate is valid for the requested number of days.
     "-days",
     String(serverCertificateDays),
     "-sha256",
-    // -extfile is required to assign Subject Alternative Name which Chrome requires to trust an SSL certificate.
     "-extfile",
     serverCertificateExtensionsPath,
   ]);
   console.log(`Created: ${serverSignedCertPath}`);
 
   return serverSignedCertPath;
-}
-
-async function verifyServerCertificate(
-  caRootCertPath: string,
-  serverSignedCertPath: string,
-) {
-  console.log("");
-  console.log("Verifying server certificate against CA certificate...");
-  const verifyResult = await openssl("verify", [
-    "-x509_strict",
-    "-CAfile",
-    caRootCertPath,
-    serverSignedCertPath,
-  ]);
-  console.log("Verify result: " + verifyResult.stdout.trim());
-}
-
-function handleFatalError(error: unknown) {
-  console.error(error);
-  process.exitCode = 1;
-}
-
-function isMainModule() {
-  return process.argv[1] === fileURLToPath(import.meta.url);
 }
 
 async function writeServerCertificateExtensionsFile(
@@ -267,27 +181,57 @@ async function writeServerCertificateExtensionsFile(
   const serverCertificateExtensionsPath = join(
     outputDirectoryPath,
     "server",
-    "v3.ext",
+    "server-v3.ext",
   );
-  const altNames = serverDnsNames
-    .map((serverDnsName, index) => `DNS.${index + 1} = ${serverDnsName}`)
+
+  const subjectAlternativeNames = serverDnsNames
+    .map((dnsName, index) => `DNS.${index + 1}=${dnsName}`)
     .join("\n");
 
-  await writeFile(
-    serverCertificateExtensionsPath,
-    `# Point back to the CA key that signed this certificate.
-authorityKeyIdentifier=keyid,issuer
-# Mark this as a leaf certificate, not a CA.
-basicConstraints=CA:FALSE
-# Allow normal TLS leaf-certificate key uses.
-keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
-# List the hostname this certificate is valid for.
-subjectAltName = @alt_names
+  const extfileContents = [
+    "authorityKeyIdentifier=keyid,issuer",
+    "basicConstraints=CA:FALSE",
+    "keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment",
+    "subjectAltName = @alt_names",
+    "[alt_names]",
+    subjectAlternativeNames,
+  ].join("\n");
 
-[alt_names]
-${altNames}
-`,
-  );
+  await writeFile(serverCertificateExtensionsPath, extfileContents, "utf-8");
+  console.log(`Created: ${serverCertificateExtensionsPath}`);
 
   return serverCertificateExtensionsPath;
+}
+
+async function verifyServerCertificate(
+  caRootCertPath: string,
+  serverSignedCertPath: string,
+) {
+  console.log("");
+  console.log("Verifying signed certificate against CA...");
+  await openssl("verify", [
+    "-x509_strict",
+    "-CAfile",
+    caRootCertPath,
+    serverSignedCertPath,
+  ]);
+  console.log("Verification successful.");
+}
+
+function assertFileExists(filePath: string, errorMessage: string) {
+  if (existsSync(filePath)) {
+    return;
+  }
+
+  throw new Error(errorMessage);
+}
+
+function isMainModule() {
+  const currentFilePath = fileURLToPath(import.meta.url);
+  return process.argv[1] && resolve(process.argv[1]) === currentFilePath;
+}
+
+function handleFatalError(error: unknown) {
+  console.error(error);
+  process.exitCode = 1;
 }

@@ -1,6 +1,7 @@
 {
   "type": "module",
   "scripts": {
+    "generate-ca": "node generate-ca.ts",
     "start": "node generate-https-certificates.ts",
     "install-root-ca-cert": "node install-root-ca-cert.ts"
   }
