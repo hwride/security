@@ -1,9 +1,10 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import * as https from "node:https";
 import { resolve } from "node:path";
 import { afterEach, expect, test } from "vitest";
 import { generateCa } from "../certgen/generate-ca.ts";
 import { issueCertificate } from "../certgen/issue-cert.ts";
+import { getIssuedCertExtensionsPath } from "../certgen/util/paths.ts";
 
 const serverPort = 8080;
 let server: https.Server | undefined;
@@ -27,11 +28,11 @@ afterEach(async () => {
   server = undefined;
 });
 
-test("successful request", async () => {
+test("successful request when certificate has a DNS SAN", async () => {
   expect.hasAssertions();
 
   const { caRootCertPath, privateKeyPath, certPath } =
-    await generateCertificates();
+    await generateCertificates({ dnsNames: ["localhost"] });
 
   await bootHttpsServer(certPath, privateKeyPath);
 
@@ -41,13 +42,14 @@ test("successful request", async () => {
   expect(responseBody).toBe("HTTPS response");
 });
 
-test("successful request when requesting by IP and certificate includes an IP SAN", async () => {
+test("successful request when certificate has an IP SAN", async () => {
   expect.hasAssertions();
 
-  const { caRootCertPath, privateKeyPath, certPath } = await generateCertificates({
-    dnsNames: [],
-    ipAddresses: ["127.0.0.1"],
-  });
+  const { caRootCertPath, privateKeyPath, certPath } =
+    await generateCertificates({
+      dnsNames: [],
+      ipAddresses: ["127.0.0.1"],
+    });
 
   await bootHttpsServer(certPath, privateKeyPath);
 
@@ -58,14 +60,35 @@ test("successful request when requesting by IP and certificate includes an IP SA
   expect(responseBody).toBe("HTTPS response");
 });
 
-test("server certificate is not signed by a trusted root certificate", async () => {
+test("failed request using domain when certificate has IP SAN", async () => {
   expect.hasAssertions();
 
-  const { privateKeyPath, certPath } = await generateCertificates();
+  const { caRootCertPath, privateKeyPath, certPath } =
+    await generateCertificates({ dnsNames: ["localhost"] });
 
   await bootHttpsServer(certPath, privateKeyPath);
 
-  await expect(makeHttpsRequest({})).rejects.toMatchObject({
+  await expect(
+    makeHttpsRequest({
+      requestUrl: `https://127.0.0.1:${serverPort}`,
+      requestOptions: { ca: readFileSync(caRootCertPath) },
+    }),
+  ).rejects.toMatchObject({
+    code: "ERR_TLS_CERT_ALTNAME_INVALID",
+    message: expect.stringContaining("does not match certificate's altnames"),
+  });
+});
+
+test("server certificate is not signed by a trusted root certificate", async () => {
+  expect.hasAssertions();
+
+  const { privateKeyPath, certPath } = await generateCertificates({
+    dnsNames: ["localhost"],
+  });
+
+  await bootHttpsServer(certPath, privateKeyPath);
+
+  await expect(makeHttpsRequest()).rejects.toMatchObject({
     code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
     message: expect.stringContaining("unable to verify the first certificate"),
   });
@@ -110,30 +133,15 @@ test("server certificate is signed correctly, but certificate has expired", asyn
   });
 });
 
-test("server certificate is signed correctly for localhost, but request uses an IP address", async () => {
+test("request to an IP fails when the certificate omits SAN but still writes the ext file", async () => {
   expect.hasAssertions();
 
+  const issuedCertDirectoryPath = resolve(process.cwd(), "build-issued-cert");
   const { caRootCertPath, privateKeyPath, certPath } =
-    await generateCertificates({ dnsNames: ["localhost"] });
-
-  await bootHttpsServer(certPath, privateKeyPath);
-
-  await expect(
-    makeHttpsRequest({
-      requestUrl: `https://127.0.0.1:${serverPort}`,
-      requestOptions: { ca: readFileSync(caRootCertPath) },
-    }),
-  ).rejects.toMatchObject({
-    code: "ERR_TLS_CERT_ALTNAME_INVALID",
-    message: expect.stringContaining("does not match certificate's altnames"),
-  });
-});
-
-test("request to an IP fails when the certificate does not contain a SAN extension", async () => {
-  expect.hasAssertions();
-
-  const { caRootCertPath, privateKeyPath, certPath } =
-    await generateCertificates({ includeSubjectAltName: false });
+    await generateCertificates({ dnsNames: [], ipAddresses: [] });
+  expect(existsSync(getIssuedCertExtensionsPath(issuedCertDirectoryPath))).toBe(
+    true,
+  );
 
   await bootHttpsServer(certPath, privateKeyPath);
 
@@ -185,19 +193,19 @@ function makeHttpsRequest({
 }: {
   requestUrl?: string;
   requestOptions?: https.RequestOptions;
-}) {
+} = {}) {
   return new Promise<string>((resolve, reject) => {
     const request = https.get(requestUrl, requestOptions, (response) => {
-        let data = "";
+      let data = "";
 
-        response.on("data", (chunk: Buffer) => {
-          data += chunk.toString();
-        });
-
-        response.on("end", () => {
-          resolve(data);
-        });
+      response.on("data", (chunk: Buffer) => {
+        data += chunk.toString();
       });
+
+      response.on("end", () => {
+        resolve(data);
+      });
+    });
 
     request.on("error", reject);
   });

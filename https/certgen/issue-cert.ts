@@ -15,16 +15,24 @@ import {
 } from "./util/paths.ts";
 
 if (isMainModule()) {
-  issueCertificate().catch(handleFatalError);
+  issueCertificate({ dnsNames: ["localhost"] }).catch(handleFatalError);
 }
 
 type IssueCertificateOptions = {
+  /** Directory to output the private key, certificate and other build artifacts. */
   outputDirectoryPath?: string;
+  /** Directory containing the certificate authority private key, certificate and other build artifacts. */
   caDirectoryPath?: string;
+  /**
+   * DNS names to be written as Subject Alternative Name (SAN) entries.
+   * Client will verify that a request matches SAN values.
+   */
   dnsNames?: string[];
+  /** IP addresses to be written as Subject Alternative Name (SAN) entries. */
   ipAddresses?: string[];
-  includeSubjectAltName?: boolean;
+  /** How many days until the certificate expires. */
   certificateDays?: number;
+  /** Whether to run verification after creation that the certificate is signed by the CA. */
   verifyCertificateAfterCreation?: boolean;
 };
 
@@ -47,9 +55,8 @@ type IssueCertificateResult = {
 export async function issueCertificate({
   outputDirectoryPath = getDefaultBuildIssuedCertPath(),
   caDirectoryPath = getDefaultBuildCaPath(),
-  dnsNames = ["localhost"],
+  dnsNames = [],
   ipAddresses = [],
-  includeSubjectAltName = true,
   certificateDays = 5,
   verifyCertificateAfterCreation = true,
 }: IssueCertificateOptions = {}): Promise<IssueCertificateResult> {
@@ -81,7 +88,6 @@ export async function issueCertificate({
     outputDirectoryPath,
     dnsNames,
     ipAddresses,
-    includeSubjectAltName,
     certificateDays,
     caRootCertPath,
     caPrivateKeyPath,
@@ -148,66 +154,40 @@ async function issueCertificateFromCsr(
   outputDirectoryPath: string,
   dnsNames: string[],
   ipAddresses: string[],
-  includeSubjectAltName: boolean,
   certificateDays: number,
   caRootCertPath: string,
   caPrivateKeyPath: string,
   certCsrPath: string,
 ) {
-  const certExtensionsPath = includeSubjectAltName
-    ? await writeCertificateExtensionsFile(
-        outputDirectoryPath,
-        dnsNames,
-        ipAddresses,
-      )
-    : undefined;
+  const certExtensionsPath = await writeCertificateExtensionsFile(
+    outputDirectoryPath,
+    dnsNames,
+    ipAddresses,
+  );
   const certPath = getIssuedCertPath(outputDirectoryPath);
   console.log("");
   console.log("CA creating signed certificate from CSR...");
-  if (certExtensionsPath) {
-    // -extfile is required to assign Subject Alternative Name which Chrome requires to trust an SSL certificate.
-    await openssl("x509", [
-      // The -req option takes a certificate request and outputs a signed certificate.
-      "-req",
-      "-in",
-      certCsrPath,
-      "-CA",
-      caRootCertPath,
-      "-CAkey",
-      caPrivateKeyPath,
-      // OpenSSL option to store a bookkeeping file that stores the next serial number used when this CA
-      // issues certificates.
-      "-CAcreateserial",
-      "-out",
-      certPath,
-      // The certificate is valid for the requested number of days.
-      "-days",
-      String(certificateDays),
-      "-sha256",
-      "-extfile",
-      certExtensionsPath,
-    ]);
-  } else {
-    await openssl("x509", [
-      // The -req option takes a certificate request and outputs a signed certificate.
-      "-req",
-      "-in",
-      certCsrPath,
-      "-CA",
-      caRootCertPath,
-      "-CAkey",
-      caPrivateKeyPath,
-      // OpenSSL option to store a bookkeeping file that stores the next serial number used when this CA
-      // issues certificates.
-      "-CAcreateserial",
-      "-out",
-      certPath,
-      // The certificate is valid for the requested number of days.
-      "-days",
-      String(certificateDays),
-      "-sha256",
-    ]);
-  }
+  await openssl("x509", [
+    // The -req option takes a certificate request and outputs a signed certificate.
+    "-req",
+    "-in",
+    certCsrPath,
+    "-CA",
+    caRootCertPath,
+    "-CAkey",
+    caPrivateKeyPath,
+    // OpenSSL option to store a bookkeeping file that stores the next serial number used when this CA
+    // issues certificates.
+    "-CAcreateserial",
+    "-out",
+    certPath,
+    // The certificate is valid for the requested number of days.
+    "-days",
+    String(certificateDays),
+    "-sha256",
+    "-extfile",
+    certExtensionsPath,
+  ]);
   console.log(`Created: ${certPath}`);
 
   return certPath;
@@ -229,19 +209,27 @@ async function writeCertificateExtensionsFile(
   const subjectAlternativeNames = [dnsAlternativeNames, ipAlternativeNames]
     .filter(Boolean)
     .join("\n");
+  const hasSubjectAlternativeNames = subjectAlternativeNames.length > 0;
 
-  const extfileContents = [
+  const extfileLines = [
     // Point back to the CA key that signed this certificate.
     "authorityKeyIdentifier=keyid,issuer",
     // Mark this as a leaf certificate, not a CA.
     "basicConstraints=CA:FALSE",
     // Allow normal TLS leaf-certificate key uses.
     "keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment",
-    // List the hostname this certificate is valid for.
-    "subjectAltName = @alt_names",
-    "[alt_names]",
-    subjectAlternativeNames,
-  ].join("\n");
+  ];
+
+  if (hasSubjectAlternativeNames) {
+    extfileLines.push(
+      // List the hostnames and IPs this certificate is valid for.
+      "subjectAltName = @alt_names",
+      "[alt_names]",
+      subjectAlternativeNames,
+    );
+  }
+
+  const extfileContents = extfileLines.join("\n");
 
   await writeFile(certExtensionsPath, extfileContents, "utf-8");
   console.log(`Created: ${certExtensionsPath}`);
