@@ -1,5 +1,5 @@
 const loglevel = require('loglevel')
-const chalk = require('chalk')
+const { default: chalk } = require('chalk')
 const prefix = require('loglevel-plugin-prefix')
 
 // Setup prefix plugin.
