@@ -1,4 +1,4 @@
-name: Proxy
+name: Security
 
 on: push
 
@@ -42,3 +42,23 @@ jobs:
         working-directory: ./https/certgen
       - run: npm test
         working-directory: ./https/certgen
+
+  https-node:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [24.x]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+        working-directory: ./https/node
+      - run: npm run types
+        working-directory: ./https/node
+      - run: npm test
+        working-directory: ./https/node
