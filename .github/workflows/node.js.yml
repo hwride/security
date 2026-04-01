@@ -3,7 +3,7 @@ name: Proxy
 on: push
 
 jobs:
-  build:
+  proxy:
     runs-on: ubuntu-latest
 
     strategy:
@@ -22,3 +22,23 @@ jobs:
         working-directory: ./proxy
       - run: npm test
         working-directory: ./proxy
+
+  certgen:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [24.x]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+        working-directory: ./https/certgen
+      - run: npm run types
+        working-directory: ./https/certgen
+      - run: npm test
+        working-directory: ./https/certgen
