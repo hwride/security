@@ -1,1 +1,0 @@
-- Seems to log headers twice now in "Request sent to server"
