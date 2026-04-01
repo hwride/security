@@ -36,6 +36,8 @@ certificate valid for `localhost`.
 
 When using `issueCertificate(...)` programmatically, the SAN extension is derived from `dnsNames` and
 `ipAddresses`. If both arrays are empty, the certificate is issued without SAN entries.
+`commonName` is configurable; by default it uses the first DNS SAN, otherwise the first IP SAN,
+otherwise `common-name-default`.
 
 Output directory `build-issued-cert` containing:
 - `private-key.key`: The private key for the issued certificate.

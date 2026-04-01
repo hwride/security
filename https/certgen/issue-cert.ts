@@ -23,6 +23,8 @@ type IssueCertificateOptions = {
   outputDirectoryPath?: string;
   /** Directory containing the certificate authority private key, certificate and other build artifacts. */
   caDirectoryPath?: string;
+  /** Common Name (CN) to write into the certificate subject. */
+  commonName?: string;
   /**
    * DNS names to be written as Subject Alternative Name (SAN) entries.
    * Client will verify that a request matches SAN values.
@@ -55,6 +57,7 @@ type IssueCertificateResult = {
 export async function issueCertificate({
   outputDirectoryPath = getDefaultBuildIssuedCertPath(),
   caDirectoryPath = getDefaultBuildCaPath(),
+  commonName,
   dnsNames = [],
   ipAddresses = [],
   certificateDays = 5,
@@ -76,11 +79,15 @@ export async function issueCertificate({
 
   // Generate private key for this certificate.
   const privateKeyPath = await generatePrivateKey(outputDirectoryPath);
+  // https://cabforum.org/working-groups/server/baseline-requirements/requirements/#7143-subscriber-certificate-common-name-attribute
+  const certificateCommonName =
+    commonName ?? dnsNames[0] ?? ipAddresses[0] ?? "common-name-default";
 
   // Prepare a certificate signing request. This is normally given to a certificate authority.
   const certCsrPath = await generateCertificateSigningRequest(
     outputDirectoryPath,
     privateKeyPath,
+    certificateCommonName,
   );
 
   // Certificate authority creates a signed certificate from the certificate signing request.
@@ -131,6 +138,7 @@ async function generatePrivateKey(outputDirectoryPath: string) {
 async function generateCertificateSigningRequest(
   outputDirectoryPath: string,
   privateKeyPath: string,
+  commonName: string,
 ) {
   const certCsrPath = getIssuedCertCsrPath(outputDirectoryPath);
   console.log("");
@@ -143,7 +151,7 @@ async function generateCertificateSigningRequest(
     "-out",
     certCsrPath,
     "-subj",
-    "/C=UK/ST=London/L=London/O=SSL Test Org/OU=IT/CN=localhost",
+    `/C=UK/ST=London/L=London/O=SSL Test Org/OU=IT/CN=${commonName}`,
   ]);
   console.log(`Created: ${certCsrPath}`);
 

@@ -60,80 +60,7 @@ test("successful request when certificate has an IP SAN", async () => {
   expect(responseBody).toBe("HTTPS response");
 });
 
-test("failed request using domain when certificate has IP SAN", async () => {
-  expect.hasAssertions();
-
-  const { caRootCertPath, privateKeyPath, certPath } =
-    await generateCertificates({ dnsNames: ["localhost"] });
-
-  await bootHttpsServer(certPath, privateKeyPath);
-
-  await expect(
-    makeHttpsRequest({
-      requestUrl: `https://127.0.0.1:${serverPort}`,
-      requestOptions: { ca: readFileSync(caRootCertPath) },
-    }),
-  ).rejects.toMatchObject({
-    code: "ERR_TLS_CERT_ALTNAME_INVALID",
-    message: expect.stringContaining("does not match certificate's altnames"),
-  });
-});
-
-test("server certificate is not signed by a trusted root certificate", async () => {
-  expect.hasAssertions();
-
-  const { privateKeyPath, certPath } = await generateCertificates({
-    dnsNames: ["localhost"],
-  });
-
-  await bootHttpsServer(certPath, privateKeyPath);
-
-  await expect(makeHttpsRequest()).rejects.toMatchObject({
-    code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
-    message: expect.stringContaining("unable to verify the first certificate"),
-  });
-});
-
-test("server certificate is signed correctly, but hostname does not match the requested hostname", async () => {
-  expect.hasAssertions();
-
-  const { caRootCertPath, privateKeyPath, certPath } =
-    await generateCertificates({ dnsNames: ["example.test"] });
-
-  await bootHttpsServer(certPath, privateKeyPath);
-
-  await expect(
-    makeHttpsRequest({
-      requestOptions: { ca: readFileSync(caRootCertPath) },
-    }),
-  ).rejects.toMatchObject({
-    code: "ERR_TLS_CERT_ALTNAME_INVALID",
-    message: expect.stringContaining("does not match certificate's altnames"),
-  });
-});
-
-test("server certificate is signed correctly, but certificate has expired", async () => {
-  expect.hasAssertions();
-
-  const { caRootCertPath, privateKeyPath, certPath } =
-    await generateCertificates({
-      certificateDays: 0,
-      verifyCertificateAfterCreation: false,
-    });
-
-  await bootHttpsServer(certPath, privateKeyPath);
-
-  await expect(
-    makeHttpsRequest({
-      requestOptions: { ca: readFileSync(caRootCertPath) },
-    }),
-  ).rejects.toMatchObject({
-    code: "CERT_HAS_EXPIRED",
-    message: expect.stringContaining("certificate has expired"),
-  });
-});
-
-test("request to an IP fails when the certificate omits SAN but still writes the ext file", async () => {
+test("failed request due to certificate with no SANs", async () => {
   expect.hasAssertions();
 
   const issuedCertDirectoryPath = resolve(process.cwd(), "build-issued-cert");
@@ -153,6 +80,153 @@ test("request to an IP fails when the certificate omits SAN but still writes the
   ).rejects.toMatchObject({
     code: "ERR_TLS_CERT_ALTNAME_INVALID",
     message: expect.stringContaining("does not match certificate's altnames"),
+  });
+});
+
+// As this test shows, when a certificate has no SAN entries, Node can fall back to
+// validating the request hostname against the certificate Common Name (CN).
+// SAN is still the modern, recommended place for certificate identities, and
+// publicly trusted TLS certificates are generally expected to include SANs.
+// https://cabforum.org/working-groups/server/baseline-requirements/requirements/#7143-subscriber-certificate-common-name-attribute
+test("successful request when certificate has no SANs but CN matches request domain", async () => {
+  expect.hasAssertions();
+
+  const { caRootCertPath, privateKeyPath, certPath } =
+    await generateCertificates({
+      commonName: "localhost",
+      dnsNames: [],
+      ipAddresses: [],
+    });
+
+  await bootHttpsServer(certPath, privateKeyPath);
+
+  const responseBody = await makeHttpsRequest({
+    requestOptions: { ca: readFileSync(caRootCertPath) },
+  });
+  expect(responseBody).toBe("HTTPS response");
+});
+
+test("failed request when certificate has DNS SAN that does not match request domain", async () => {
+  expect.hasAssertions();
+
+  const { caRootCertPath, privateKeyPath, certPath } =
+    await generateCertificates({ dnsNames: ["example.test"] });
+
+  await bootHttpsServer(certPath, privateKeyPath);
+
+  await expect(
+    makeHttpsRequest({
+      requestOptions: { ca: readFileSync(caRootCertPath) },
+    }),
+  ).rejects.toMatchObject({
+    code: "ERR_TLS_CERT_ALTNAME_INVALID",
+    message: expect.stringContaining("does not match certificate's altnames"),
+  });
+});
+
+test("failed request when certificate has DNS SAN but request uses an IP", async () => {
+  expect.hasAssertions();
+
+  const { caRootCertPath, privateKeyPath, certPath } =
+    await generateCertificates({ dnsNames: ["localhost"] });
+
+  await bootHttpsServer(certPath, privateKeyPath);
+
+  await expect(
+    makeHttpsRequest({
+      requestUrl: `https://127.0.0.1:${serverPort}`,
+      requestOptions: { ca: readFileSync(caRootCertPath) },
+    }),
+  ).rejects.toMatchObject({
+    code: "ERR_TLS_CERT_ALTNAME_INVALID",
+    message: expect.stringContaining("does not match certificate's altnames"),
+  });
+});
+
+test("failed request when certificate has IP SAN but request uses a domain", async () => {
+  expect.hasAssertions();
+
+  const { caRootCertPath, privateKeyPath, certPath } =
+    await generateCertificates({
+      commonName: "unused.invalid",
+      ipAddresses: ["127.0.0.1"],
+    });
+
+  await bootHttpsServer(certPath, privateKeyPath);
+
+  await expect(
+    makeHttpsRequest({
+      requestUrl: `https://localhost:${serverPort}`,
+      requestOptions: { ca: readFileSync(caRootCertPath) },
+    }),
+  ).rejects.toMatchObject({
+    code: "ERR_TLS_CERT_ALTNAME_INVALID",
+    message: expect.stringContaining("does not match certificate's altnames"),
+  });
+});
+
+test("successful requests matching multiple SANs - DNS and IP", async () => {
+  expect.hasAssertions();
+
+  const { caRootCertPath, privateKeyPath, certPath } =
+    await generateCertificates({
+      dnsNames: ["localhost"],
+      ipAddresses: ["127.0.0.1"],
+    });
+
+  await bootHttpsServer(certPath, privateKeyPath);
+
+  // Domain request should work.
+  expect(
+    await makeHttpsRequest({
+      requestUrl: `https://localhost:${serverPort}`,
+      requestOptions: { ca: readFileSync(caRootCertPath) },
+    }),
+  ).toBe("HTTPS response");
+
+  // IP request should work.
+  expect(
+    await makeHttpsRequest({
+      requestUrl: `https://127.0.0.1:${serverPort}`,
+      requestOptions: { ca: readFileSync(caRootCertPath) },
+    }),
+  ).toBe("HTTPS response");
+});
+
+test("server certificate is not signed by a trusted root certificate", async () => {
+  expect.hasAssertions();
+
+  const { privateKeyPath, certPath } = await generateCertificates({
+    dnsNames: ["localhost"],
+  });
+
+  await bootHttpsServer(certPath, privateKeyPath);
+
+  await expect(makeHttpsRequest()).rejects.toMatchObject({
+    code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+    message: expect.stringContaining("unable to verify the first certificate"),
+  });
+});
+
+test("failed request due to expired certificate", async () => {
+  expect.hasAssertions();
+
+  const { caRootCertPath, privateKeyPath, certPath } =
+    await generateCertificates({
+      dnsNames: ["localhost"],
+      certificateDays: 0,
+      verifyCertificateAfterCreation: false,
+    });
+
+  await bootHttpsServer(certPath, privateKeyPath);
+
+  await expect(
+    makeHttpsRequest({
+      requestOptions: { ca: readFileSync(caRootCertPath) },
+    }),
+  ).rejects.toMatchObject({
+    code: "CERT_HAS_EXPIRED",
+    message: expect.stringContaining("certificate has expired"),
   });
 });
 
