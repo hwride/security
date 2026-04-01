@@ -1,2 +1,3 @@
 - Generate certificate that can be used for mTLS
 - Support trust store for Windows
+- Allow passing of domains and IPs as an argument to the CLI issue certificate command.

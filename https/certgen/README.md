@@ -31,7 +31,13 @@ This script will remove the generated CA certificate from the system trust store
 `npm run issue-cert`
 
 This script issues a TLS certificate from a CSR using the CA we generated. You can run this multiple times, to 
-generate new certificates, each signed by the same generated certificate authority.
+generate new certificates, each signed by the same generated certificate authority. The CLI defaults to a
+certificate valid for `localhost`.
+
+When using `issueCertificate(...)` programmatically, the SAN extension is derived from `dnsNames` and
+`ipAddresses`. If both arrays are empty, the certificate is issued without SAN entries.
+`commonName` is configurable; by default it uses the first DNS SAN, otherwise the first IP SAN,
+otherwise `common-name-default`.
 
 Output directory `build-issued-cert` containing:
 - `private-key.key`: The private key for the issued certificate.
