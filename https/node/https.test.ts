@@ -41,6 +41,23 @@ test("successful request", async () => {
   expect(responseBody).toBe("HTTPS response");
 });
 
+test("successful request when requesting by IP and certificate includes an IP SAN", async () => {
+  expect.hasAssertions();
+
+  const { caRootCertPath, privateKeyPath, certPath } = await generateCertificates({
+    dnsNames: [],
+    ipAddresses: ["127.0.0.1"],
+  });
+
+  await bootHttpsServer(certPath, privateKeyPath);
+
+  const responseBody = await makeHttpsRequest({
+    requestUrl: `https://127.0.0.1:${serverPort}`,
+    requestOptions: { ca: readFileSync(caRootCertPath) },
+  });
+  expect(responseBody).toBe("HTTPS response");
+});
+
 test("server certificate is not signed by a trusted root certificate", async () => {
   expect.hasAssertions();
 

@@ -22,6 +22,7 @@ type IssueCertificateOptions = {
   outputDirectoryPath?: string;
   caDirectoryPath?: string;
   dnsNames?: string[];
+  ipAddresses?: string[];
   includeSubjectAltName?: boolean;
   certificateDays?: number;
   verifyCertificateAfterCreation?: boolean;
@@ -47,6 +48,7 @@ export async function issueCertificate({
   outputDirectoryPath = getDefaultBuildIssuedCertPath(),
   caDirectoryPath = getDefaultBuildCaPath(),
   dnsNames = ["localhost"],
+  ipAddresses = [],
   includeSubjectAltName = true,
   certificateDays = 5,
   verifyCertificateAfterCreation = true,
@@ -78,6 +80,7 @@ export async function issueCertificate({
   const certPath = await issueCertificateFromCsr(
     outputDirectoryPath,
     dnsNames,
+    ipAddresses,
     includeSubjectAltName,
     certificateDays,
     caRootCertPath,
@@ -144,6 +147,7 @@ async function generateCertificateSigningRequest(
 async function issueCertificateFromCsr(
   outputDirectoryPath: string,
   dnsNames: string[],
+  ipAddresses: string[],
   includeSubjectAltName: boolean,
   certificateDays: number,
   caRootCertPath: string,
@@ -151,7 +155,11 @@ async function issueCertificateFromCsr(
   certCsrPath: string,
 ) {
   const certExtensionsPath = includeSubjectAltName
-    ? await writeCertificateExtensionsFile(outputDirectoryPath, dnsNames)
+    ? await writeCertificateExtensionsFile(
+        outputDirectoryPath,
+        dnsNames,
+        ipAddresses,
+      )
     : undefined;
   const certPath = getIssuedCertPath(outputDirectoryPath);
   console.log("");
@@ -159,6 +167,7 @@ async function issueCertificateFromCsr(
   if (certExtensionsPath) {
     // -extfile is required to assign Subject Alternative Name which Chrome requires to trust an SSL certificate.
     await openssl("x509", [
+      // The -req option takes a certificate request and outputs a signed certificate.
       "-req",
       "-in",
       certCsrPath,
@@ -166,9 +175,12 @@ async function issueCertificateFromCsr(
       caRootCertPath,
       "-CAkey",
       caPrivateKeyPath,
+      // OpenSSL option to store a bookkeeping file that stores the next serial number used when this CA
+      // issues certificates.
       "-CAcreateserial",
       "-out",
       certPath,
+      // The certificate is valid for the requested number of days.
       "-days",
       String(certificateDays),
       "-sha256",
@@ -177,6 +189,7 @@ async function issueCertificateFromCsr(
     ]);
   } else {
     await openssl("x509", [
+      // The -req option takes a certificate request and outputs a signed certificate.
       "-req",
       "-in",
       certCsrPath,
@@ -184,9 +197,12 @@ async function issueCertificateFromCsr(
       caRootCertPath,
       "-CAkey",
       caPrivateKeyPath,
+      // OpenSSL option to store a bookkeeping file that stores the next serial number used when this CA
+      // issues certificates.
       "-CAcreateserial",
       "-out",
       certPath,
+      // The certificate is valid for the requested number of days.
       "-days",
       String(certificateDays),
       "-sha256",
@@ -200,11 +216,18 @@ async function issueCertificateFromCsr(
 async function writeCertificateExtensionsFile(
   outputDirectoryPath: string,
   dnsNames: string[],
+  ipAddresses: string[],
 ) {
   const certExtensionsPath = getIssuedCertExtensionsPath(outputDirectoryPath);
 
-  const subjectAlternativeNames = dnsNames
+  const dnsAlternativeNames = dnsNames
     .map((dnsName, index) => `DNS.${index + 1}=${dnsName}`)
+    .join("\n");
+  const ipAlternativeNames = ipAddresses
+    .map((ipAddress, index) => `IP.${index + 1}=${ipAddress}`)
+    .join("\n");
+  const subjectAlternativeNames = [dnsAlternativeNames, ipAlternativeNames]
+    .filter(Boolean)
     .join("\n");
 
   const extfileContents = [
