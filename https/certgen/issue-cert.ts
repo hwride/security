@@ -18,7 +18,7 @@ if (isMainModule()) {
   issueCertificate({ dnsNames: ["localhost"] }).catch(handleFatalError);
 }
 
-type IssueCertificateOptions = {
+export type IssueCertificateOptions = {
   /** Directory to output the private key, certificate and other build artifacts. */
   outputDirectoryPath?: string;
   /** Directory containing the certificate authority private key, certificate and other build artifacts. */
