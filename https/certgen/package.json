@@ -4,7 +4,9 @@
     "generate-ca": "node generate-ca.ts",
     "install-ca": "node install-ca.ts",
     "uninstall-ca": "node uninstall-ca.ts",
-    "issue-cert": "node issue-cert.ts"
+    "issue-cert": "node issue-cert.ts",
+    "types": "tsc --noEmit",
+    "test": "node --test certgen.test.ts"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
