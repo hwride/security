@@ -22,6 +22,7 @@ type IssueCertificateOptions = {
   outputDirectoryPath?: string;
   caDirectoryPath?: string;
   dnsNames?: string[];
+  includeSubjectAltName?: boolean;
   certificateDays?: number;
   verifyCertificateAfterCreation?: boolean;
 };
@@ -46,6 +47,7 @@ export async function issueCertificate({
   outputDirectoryPath = getDefaultBuildIssuedCertPath(),
   caDirectoryPath = getDefaultBuildCaPath(),
   dnsNames = ["localhost"],
+  includeSubjectAltName = true,
   certificateDays = 5,
   verifyCertificateAfterCreation = true,
 }: IssueCertificateOptions = {}): Promise<IssueCertificateResult> {
@@ -76,6 +78,7 @@ export async function issueCertificate({
   const certPath = await issueCertificateFromCsr(
     outputDirectoryPath,
     dnsNames,
+    includeSubjectAltName,
     certificateDays,
     caRootCertPath,
     caPrivateKeyPath,
@@ -141,40 +144,54 @@ async function generateCertificateSigningRequest(
 async function issueCertificateFromCsr(
   outputDirectoryPath: string,
   dnsNames: string[],
+  includeSubjectAltName: boolean,
   certificateDays: number,
   caRootCertPath: string,
   caPrivateKeyPath: string,
   certCsrPath: string,
 ) {
-  const certExtensionsPath = await writeCertificateExtensionsFile(
-    outputDirectoryPath,
-    dnsNames,
-  );
+  const certExtensionsPath = includeSubjectAltName
+    ? await writeCertificateExtensionsFile(outputDirectoryPath, dnsNames)
+    : undefined;
   const certPath = getIssuedCertPath(outputDirectoryPath);
   console.log("");
   console.log("CA creating signed certificate from CSR...");
-  // openssl x509 - certificate display and signing command
-  await openssl("x509", [
-    "-req",
-    "-in",
-    certCsrPath,
-    "-CA",
-    caRootCertPath,
-    "-CAkey",
-    caPrivateKeyPath,
-    // OpenSSL option to store a bookkeeping file that stores the next serial number used when this CA
-    // issues certificates
-    "-CAcreateserial",
-    "-out",
-    certPath,
-    // The certificate is valid for the requested number of days.
-    "-days",
-    String(certificateDays),
-    "-sha256",
+  if (certExtensionsPath) {
     // -extfile is required to assign Subject Alternative Name which Chrome requires to trust an SSL certificate.
-    "-extfile",
-    certExtensionsPath,
-  ]);
+    await openssl("x509", [
+      "-req",
+      "-in",
+      certCsrPath,
+      "-CA",
+      caRootCertPath,
+      "-CAkey",
+      caPrivateKeyPath,
+      "-CAcreateserial",
+      "-out",
+      certPath,
+      "-days",
+      String(certificateDays),
+      "-sha256",
+      "-extfile",
+      certExtensionsPath,
+    ]);
+  } else {
+    await openssl("x509", [
+      "-req",
+      "-in",
+      certCsrPath,
+      "-CA",
+      caRootCertPath,
+      "-CAkey",
+      caPrivateKeyPath,
+      "-CAcreateserial",
+      "-out",
+      certPath,
+      "-days",
+      String(certificateDays),
+      "-sha256",
+    ]);
+  }
   console.log(`Created: ${certPath}`);
 
   return certPath;

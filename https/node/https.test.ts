@@ -36,7 +36,7 @@ test("successful request", async () => {
   await bootHttpsServer(certPath, privateKeyPath);
 
   const responseBody = await makeHttpsRequest({
-    ca: readFileSync(caRootCertPath),
+    requestOptions: { ca: readFileSync(caRootCertPath) },
   });
   expect(responseBody).toBe("HTTPS response");
 });
@@ -48,7 +48,7 @@ test("server certificate is not signed by a trusted root certificate", async () 
 
   await bootHttpsServer(certPath, privateKeyPath);
 
-  expect(makeHttpsRequest()).rejects.toMatchObject({
+  await expect(makeHttpsRequest({})).rejects.toMatchObject({
     code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
     message: expect.stringContaining("unable to verify the first certificate"),
   });
@@ -62,8 +62,10 @@ test("server certificate is signed correctly, but hostname does not match the re
 
   await bootHttpsServer(certPath, privateKeyPath);
 
-  expect(
-    makeHttpsRequest({ ca: readFileSync(caRootCertPath) }),
+  await expect(
+    makeHttpsRequest({
+      requestOptions: { ca: readFileSync(caRootCertPath) },
+    }),
   ).rejects.toMatchObject({
     code: "ERR_TLS_CERT_ALTNAME_INVALID",
     message: expect.stringContaining("does not match certificate's altnames"),
@@ -81,11 +83,51 @@ test("server certificate is signed correctly, but certificate has expired", asyn
 
   await bootHttpsServer(certPath, privateKeyPath);
 
-  expect(
-    makeHttpsRequest({ ca: readFileSync(caRootCertPath) }),
+  await expect(
+    makeHttpsRequest({
+      requestOptions: { ca: readFileSync(caRootCertPath) },
+    }),
   ).rejects.toMatchObject({
     code: "CERT_HAS_EXPIRED",
     message: expect.stringContaining("certificate has expired"),
+  });
+});
+
+test("server certificate is signed correctly for localhost, but request uses an IP address", async () => {
+  expect.hasAssertions();
+
+  const { caRootCertPath, privateKeyPath, certPath } =
+    await generateCertificates({ dnsNames: ["localhost"] });
+
+  await bootHttpsServer(certPath, privateKeyPath);
+
+  await expect(
+    makeHttpsRequest({
+      requestUrl: `https://127.0.0.1:${serverPort}`,
+      requestOptions: { ca: readFileSync(caRootCertPath) },
+    }),
+  ).rejects.toMatchObject({
+    code: "ERR_TLS_CERT_ALTNAME_INVALID",
+    message: expect.stringContaining("does not match certificate's altnames"),
+  });
+});
+
+test("request to an IP fails when the certificate does not contain a SAN extension", async () => {
+  expect.hasAssertions();
+
+  const { caRootCertPath, privateKeyPath, certPath } =
+    await generateCertificates({ includeSubjectAltName: false });
+
+  await bootHttpsServer(certPath, privateKeyPath);
+
+  await expect(
+    makeHttpsRequest({
+      requestUrl: `https://127.0.0.1:${serverPort}`,
+      requestOptions: { ca: readFileSync(caRootCertPath) },
+    }),
+  ).rejects.toMatchObject({
+    code: "ERR_TLS_CERT_ALTNAME_INVALID",
+    message: expect.stringContaining("does not match certificate's altnames"),
   });
 });
 
@@ -120,12 +162,15 @@ async function bootHttpsServer(certPath: string, privateKeyPath: string) {
   });
 }
 
-function makeHttpsRequest(options?: https.RequestOptions) {
+function makeHttpsRequest({
+  requestUrl = `https://localhost:${serverPort}`,
+  requestOptions = {},
+}: {
+  requestUrl?: string;
+  requestOptions?: https.RequestOptions;
+}) {
   return new Promise<string>((resolve, reject) => {
-    const request = https.get(
-      `https://localhost:${serverPort}`,
-      options ?? {},
-      (response) => {
+    const request = https.get(requestUrl, requestOptions, (response) => {
         let data = "";
 
         response.on("data", (chunk: Buffer) => {
@@ -135,8 +180,7 @@ function makeHttpsRequest(options?: https.RequestOptions) {
         response.on("end", () => {
           resolve(data);
         });
-      },
-    );
+      });
 
     request.on("error", reject);
   });
