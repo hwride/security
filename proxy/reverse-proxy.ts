@@ -61,13 +61,19 @@ export function boot(opts: ProxyConfig) {
   const backendRequestTimeoutMs =
     opts.backendRequestTimeoutMs ?? DEFAULT_BACKEND_REQUEST_TIMEOUT_MS;
 
-  if (proxyProtocol === "https" && !hasTlsCertificateAndKey(tlsOptions)) {
+  if (
+    proxyProtocol === "https" &&
+    (tlsOptions?.key == null || tlsOptions?.cert == null)
+  ) {
     throw new Error(
       'ProxyConfig.tls must include both "key" and "cert" when proxyProtocol is "https"',
     );
   }
 
-  const requestHandler: http.RequestListener = (clientRequest, proxyResponse) => {
+  const requestHandler: http.RequestListener = (
+    clientRequest,
+    proxyResponse,
+  ) => {
     // Request state.
     let state:
       | { status: "pending" }
@@ -250,12 +256,6 @@ export function boot(opts: ProxyConfig) {
   });
 
   return server;
-}
-
-function hasTlsCertificateAndKey(
-  tlsOptions: TlsOptions | undefined,
-): tlsOptions is TlsOptions & { key: NonNullable<TlsOptions["key"]>; cert: NonNullable<TlsOptions["cert"]> } {
-  return tlsOptions?.key != null && tlsOptions.cert != null;
 }
 
 function getHostnameFromHostHeader(hostHeader: string) {
