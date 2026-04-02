@@ -2,12 +2,15 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import * as http from "node:http";
 import * as https from "node:https";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { TlsOptions } from "node:tls";
 
 import { afterEach, expect, test, vi } from "vitest";
 
-import { issueCertificate } from "../https/certgen/issue-cert.ts";
+import {
+  issueCertificate,
+  IssueCertificateOptions,
+} from "../https/certgen/issue-cert.ts";
 import { generateCa } from "../https/certgen/generate-ca.ts";
 import { boot, ProxyConfig } from "./reverse-proxy.js";
 
@@ -220,7 +223,6 @@ test("closes the downstream connection when backend closes mid-response", async 
   expect(response.ended).toBe(false);
 });
 
-
 test("uses 30s backend timeout by default", async () => {
   await createBackendServer({ port: 3000, body: "service on 3000" });
 
@@ -407,10 +409,13 @@ test("supports HTTPS termination for client -> proxy while keeping backend HTTP"
     },
   });
 
+  const { caRootCertPath, privateKeyPath, certPath } =
+    await generateCertificates();
+
   const { proxyPort } = await createProxyServer({
     port: 0,
     proxyProtocol: "https",
-    tls: await createTestTlsOptions(),
+    tls: { key: readFileSync(privateKeyPath), cert: readFileSync(certPath) },
     backends: {
       "example.com": { servers: [{ url: "http://localhost:3000" }] },
     },
@@ -422,6 +427,11 @@ test("supports HTTPS termination for client -> proxy while keeping backend HTTP"
     },
     path: "/via-https-proxy",
     port: proxyPort,
+    requestOptions: {
+      ca: readFileSync(caRootCertPath),
+      // Server name for the SNI (Server Name Indication) TLS extension. Tells the server which certificate to return.
+      servername: "localhost",
+    },
   });
 
   expect(response.statusCode).toBe(200);
@@ -739,7 +749,6 @@ function closeServer(server: http.Server) {
   });
 }
 
-
 function delay(ms: number) {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
@@ -831,6 +840,7 @@ function makeHttpsRequest({
   method = "GET",
   path = "/",
   port,
+  requestOptions = {},
   setHost = true,
 }: {
   body?: string;
@@ -838,6 +848,7 @@ function makeHttpsRequest({
   method?: string;
   path?: string;
   port: number;
+  requestOptions?: https.RequestOptions;
   setHost?: boolean;
 }) {
   return new Promise<{
@@ -855,7 +866,7 @@ function makeHttpsRequest({
         path,
         headers,
         setHost,
-        rejectUnauthorized: false,
+        ...requestOptions,
       },
       (response) => {
         let body = "";
@@ -904,25 +915,23 @@ function makeHttpsRequest({
   });
 }
 
-async function createTestTlsOptions(): Promise<TlsOptions> {
-  const baseDirectory = mkdtempSync(join(tmpdir(), "proxy-https-test-"));
-  tempDirectories.push(baseDirectory);
-
-  const caDirectory = join(baseDirectory, "ca");
-  const issuedDirectory = join(baseDirectory, "issued");
-
-  await generateCa({ outputDirectoryPath: caDirectory });
-  const { certPath, privateKeyPath } = await issueCertificate({
-    outputDirectoryPath: issuedDirectory,
-    caDirectoryPath: caDirectory,
+async function generateCertificates(
+  options: IssueCertificateOptions = {
     dnsNames: ["localhost"],
     ipAddresses: ["127.0.0.1"],
-  });
+  },
+) {
+  const baseDirectory = mkdtempSync(join(tmpdir(), "proxy-https-test-"));
+  tempDirectories.push(baseDirectory);
+  const caDirectoryPath = join(baseDirectory, "ca");
+  const issuedDirectory = join(baseDirectory, "issued");
 
-  return {
-    key: readFileSync(privateKeyPath),
-    cert: readFileSync(certPath),
-  };
+  await generateCa({ outputDirectoryPath: caDirectoryPath });
+  return issueCertificate({
+    outputDirectoryPath: issuedDirectory,
+    caDirectoryPath,
+    ...options,
+  });
 }
 
 function readRequestBody(request: http.IncomingMessage) {
