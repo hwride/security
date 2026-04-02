@@ -410,7 +410,9 @@ test("supports HTTPS termination for client -> proxy while keeping backend HTTP"
   });
 
   const { caRootCertPath, privateKeyPath, certPath } =
-    await generateCertificates();
+    await generateCertificates({
+      dnsNames: ["example.com"],
+    });
 
   const { proxyPort } = await createProxyServer({
     port: 0,
@@ -429,8 +431,6 @@ test("supports HTTPS termination for client -> proxy while keeping backend HTTP"
     port: proxyPort,
     requestOptions: {
       ca: readFileSync(caRootCertPath),
-      // Server name for the SNI (Server Name Indication) TLS extension. Tells the server which certificate to return.
-      servername: "localhost",
     },
   });
 
