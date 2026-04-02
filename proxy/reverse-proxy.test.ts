@@ -1,13 +1,19 @@
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import * as http from "node:http";
 import * as https from "node:https";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { TlsOptions } from "node:tls";
 
 import { afterEach, expect, test, vi } from "vitest";
 
+import { issueCertificate } from "../https/certgen/issue-cert.ts";
+import { generateCa } from "../https/certgen/generate-ca.ts";
 import { boot, ProxyConfig } from "./reverse-proxy.js";
 
 let proxyServer: http.Server | null = null;
 let backendServers: http.Server[] = [];
+let tempDirectories: string[] = [];
 
 afterEach(async () => {
   await Promise.all(backendServers.map(closeServer));
@@ -17,6 +23,11 @@ afterEach(async () => {
     await closeServer(proxyServer);
     proxyServer = null;
   }
+
+  for (const tempDirectory of tempDirectories) {
+    rmSync(tempDirectory, { recursive: true, force: true });
+  }
+  tempDirectories = [];
 });
 
 test("proxies requests to the backend matched by host", async () => {
@@ -399,7 +410,7 @@ test("supports HTTPS termination for client -> proxy while keeping backend HTTP"
   const { proxyPort } = await createProxyServer({
     port: 0,
     proxyProtocol: "https",
-    tls: getTestTlsOptions(),
+    tls: await createTestTlsOptions(),
     backends: {
       "example.com": { servers: [{ url: "http://localhost:3000" }] },
     },
@@ -442,7 +453,7 @@ test("throws when HTTPS proxyProtocol is configured with cert but no key", () =>
       port: 0,
       proxyProtocol: "https",
       tls: {
-        cert: TEST_CERT,
+        cert: "-----BEGIN CERTIFICATE-----\ninvalid\n-----END CERTIFICATE-----",
       },
       backends: {
         "example.com": { servers: [{ url: "http://localhost:3000" }] },
@@ -893,61 +904,26 @@ function makeHttpsRequest({
   });
 }
 
-function getTestTlsOptions(): TlsOptions {
+async function createTestTlsOptions(): Promise<TlsOptions> {
+  const baseDirectory = mkdtempSync(join(tmpdir(), "proxy-https-test-"));
+  tempDirectories.push(baseDirectory);
+
+  const caDirectory = join(baseDirectory, "ca");
+  const issuedDirectory = join(baseDirectory, "issued");
+
+  await generateCa({ outputDirectoryPath: caDirectory });
+  const { certPath, privateKeyPath } = await issueCertificate({
+    outputDirectoryPath: issuedDirectory,
+    caDirectoryPath: caDirectory,
+    dnsNames: ["localhost"],
+    ipAddresses: ["127.0.0.1"],
+  });
+
   return {
-    key: TEST_KEY,
-    cert: TEST_CERT,
+    key: readFileSync(privateKeyPath),
+    cert: readFileSync(certPath),
   };
 }
-
-const TEST_KEY = `-----BEGIN PRIVATE KEY-----
-MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDEg+RsNWxPFnea
-aDqz7dFxc3k/3DR+8QAW6S8UWhhbyTBmUittFqcGXYzljp3FmK01vGGxkulDqhQL
-eapKwh3R0CUIz8vlf8ulEOtlpyE3VoIiHMGUl1lNhyz//ensaY7XvwIi0FWfTzel
-OXvGRS39mWeqhy7LK9TpaEsAH0SU9CuoSmmce9z41q2OYBUxG9LXzcNwU15CWupz
-3wJLSxMwkDMhyJEr0JNufcz4zPW3vXhilf1+0IpBdYk7zb/1cI3nS6AIgP0ASg56
-h832+hXWFfSqCrPgX1LKq/35hxACYtmLKsRuunAhkp6E0hkUAkFd4oje/qQUMYHJ
-/i/STRznAgMBAAECggEAIe/9JMrdF5NzuFDDwosRnpwolmS7FCkesNY4cTVV+5P1
-LdaG9WHyGmFRkdtdV+CUGTGdVYNfkXXv3EN4q0x2xeNCYhEwz0OQscMIRBfm3p2r
-/6QjsjupCoCLvvHk0hUwvAWaotSD1O1jWL9ips0Psjop8wNBi4jYTi7atPyxZV+w
-CctBczBbckotdX5ztQyto9hOqgyfaRxhw5d9PXMIhadCf+TRwMOMb/ZcurOtM5Ro
-XLFYsIZsqS0quCXSikINgBoXa6uKExXEV0sEn6cskIXdkT9fGXA/yvOAvRSZ+i99
-EA3ItqSUvk4LvXMOQzTiePjdABMhuQGuDqE7rI88UQKBgQDtboQWjvMG68BqPdEw
-/NECuZWhEpB8fUSx8ioziDqjCV34/7EKZHiFfLU09JajCL/DguvP5wEWyWtgXtlA
-fuhgDmMobdn4qafaQqJQaoKhNPqDTJ2yAvq5Fygv7H3AvXKzZXhcV5pBRLjyztbz
-EfhHC3jIFbnPKO5nMoGE2GFc0wKBgQDT4jXlyzhvNhSvcK3Oi/RB+Czy8vii8NYZ
-YjzdIFaOoLWjmfEgr8p6hqSGFAlEuNEDVg7vtfVsguaPV4lzM6hCEKZuVfW8fKMH
-/0X7+QqncCZ6kXkfhbyyDqO0V70bAIFsl7jQIJiqNK8Z4EKhaRB/0lClk7/tkgWO
-e9FM+iBjHQKBgAmTQmpye2SVD155fb0/BOLaPymOyRrsJmASxxbq8Ipwr0SCc05a
-/O1NOTWYg5axnKIy3nW0+DtGBjmNua87Lv3otqEDxR2dIfLQayFZGkmMDGpNJbLv
-IdNjFrDQFcY3HbAUcIUw1zy4m8jXBJ4q5FthIA7ZqXOsT+kDhWupGkwXAoGBAK3z
-TSR3DsHeuGTAMTEdHU77nItohk/fQSZdzHIOFoHJ1tWVkKyxJZ4p4/Bfiqxsvsvq
-XyDVVcPcQ8TyrNlzU3PJj5mN4Mz51i6+mIohD2ofXLfLrpD+jsfv1N4+GfaNF7Q7
-a3MTD8LMteSchJdXVkBaPfNxtWQpOX6ckFyODQDRAoGBAKJ/Z15dw0uCCB6DeT2s
-UE6JtuPaR65Q4R0rL8XjMNxvjrsGfOZRafnbRCeqUuMnazs8kw+SsaW1mfX6nzfC
-xsXNXWcVyOVl1lw9JIaJZx4U9XtZaO28RVfC/+yNH3d8lIuFHC8vhS2EkRttdksQ
-mUESFuec2m/xVju8zWpvliNv
------END PRIVATE KEY-----`;
-
-const TEST_CERT = `-----BEGIN CERTIFICATE-----
-MIIDCTCCAfGgAwIBAgIUanN+MKESX21jIGjQ5w/HjsHxqigwDQYJKoZIhvcNAQEL
-BQAwFDESMBAGA1UEAwwJbG9jYWxob3N0MB4XDTI2MDQwMTAwMDAwMFoXDTM2MDMy
-OTAwMDAwMFowFDESMBAGA1UEAwwJbG9jYWxob3N0MIIBIjANBgkqhkiG9w0BAQEF
-AAOCAQ8AMIIBCgKCAQEAxIPkbDVsTxZ3mmg6s+3RcXN5P9w0fvEAFukvFFoYW8kw
-ZlIrbRanBl2M5Y6dxZitNbxhsZLpQ6oUC3mqSsId0dAlCM/L5X/LpRDrZachN1aC
-IhzBlJdZTYcs//3p7GmO178CItBVn083pTl7xkUt/ZlnqocuyyvU6WhLAB9ElPQr
-qEppnHvc+NatjmAVMRvS183DcFNeQlrqc98CS0sTMJAzIciRK9CTbn3M+Mz1t714
-YpX9ftCKQXWJO82/9XCN50ugCID9AEoOeofN9voV1hX0qgqz4F9Syqv9+YcQAmLZ
-iyrEbrpwIZKehNIZFAJBXeKI3v6kFDGByf4v0k0c5wIDAQABo1MwUTAdBgNVHQ4E
-FgQUV1NKNTMQ+T4YdymIV58GTufHaGYwHwYDVR0jBBgwFoAUV1NKNTMQ+T4YdymI
-V58GTufHaGYwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAbnP+
-JGZFBLut/p1cAWAuCiY4VgAD1oswdROyVMmRhgivSYBytVN4rhxmFAZzAtZ2GTdS
-eO8a5VGv1fxc9gTNm3TnY0l9joYNNNIRjaQMaucprx9Dsu6Nc6jVp3rz1sHdYSgl
-XMAZNYDLn6TvmMadtw9JstMcHRbIn95LK+MoSs2Y7tVVz9yO5z0w3dBCbXTD2atW
-FV2oGtpaRPqaHuv28eJErznlz65FK1aIFDBP/Or/A7rDHsKlRvFLO/6gG/eyjRiX
-WX02s836Zks0PUOCX3cN+/+Y2xjAesmHT7bPiaRQ84Smr9e3KHdVbGxcHeuugm/R
-HfC4A++9vTXwh1hctQ==
------END CERTIFICATE-----`;
 
 function readRequestBody(request: http.IncomingMessage) {
   return new Promise<string>((resolve, reject) => {
