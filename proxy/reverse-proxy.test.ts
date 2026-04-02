@@ -1,11 +1,22 @@
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import * as http from "node:http";
+import * as https from "node:https";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import type { TlsOptions } from "node:tls";
 
 import { afterEach, expect, test, vi } from "vitest";
 
+import {
+  issueCertificate,
+  IssueCertificateOptions,
+} from "../https/certgen/issue-cert.ts";
+import { generateCa } from "../https/certgen/generate-ca.ts";
 import { boot, ProxyConfig } from "./reverse-proxy.js";
 
 let proxyServer: http.Server | null = null;
 let backendServers: http.Server[] = [];
+let tempDirectories: string[] = [];
 
 afterEach(async () => {
   await Promise.all(backendServers.map(closeServer));
@@ -15,6 +26,11 @@ afterEach(async () => {
     await closeServer(proxyServer);
     proxyServer = null;
   }
+
+  for (const tempDirectory of tempDirectories) {
+    rmSync(tempDirectory, { recursive: true, force: true });
+  }
+  tempDirectories = [];
 });
 
 test("proxies requests to the backend matched by host", async () => {
@@ -207,7 +223,6 @@ test("closes the downstream connection when backend closes mid-response", async 
   expect(response.ended).toBe(false);
 });
 
-
 test("uses 30s backend timeout by default", async () => {
   await createBackendServer({ port: 3000, body: "service on 3000" });
 
@@ -377,6 +392,122 @@ test("replaces forwarding headers and preserves other headers", async () => {
   expect(forwardedHeaders.xForwardedHost).toBe("example.com:1234");
   expect(forwardedHeaders.xForwardedProto).toBe("http");
   expect(forwardedHeaders.xCustomHeader).toBe("keep-me");
+});
+
+test("supports HTTPS termination for client -> proxy for multiple domains", async () => {
+  await createBackendServer({
+    port: 3000,
+    handleRequest: (request, response) => {
+      response.statusCode = 200;
+      response.setHeader("Content-Type", "application/json");
+      response.end(
+        JSON.stringify({
+          path: request.url,
+          xForwardedProto: request.headers["x-forwarded-proto"],
+        }),
+      );
+    },
+  });
+  await createBackendServer({
+    port: 4000,
+    handleRequest: (request, response) => {
+      response.statusCode = 200;
+      response.setHeader("Content-Type", "application/json");
+      response.end(
+        JSON.stringify({
+          path: request.url,
+          xForwardedProto: request.headers["x-forwarded-proto"],
+        }),
+      );
+    },
+  });
+
+  // Generate a certificate for the reverse proxy supporting all domains it forwards for.
+  const { caRootCertPath, privateKeyPath, certPath } =
+    await generateCertificates({
+      dnsNames: ["example.com", "example.test"],
+    });
+
+  const { proxyPort } = await createProxyServer({
+    port: 0,
+    proxyProtocol: "https",
+    tls: { key: readFileSync(privateKeyPath), cert: readFileSync(certPath) },
+    backends: {
+      "example.com": { servers: [{ url: "http://localhost:3000" }] },
+      "example.test": { servers: [{ url: "http://localhost:4000" }] },
+    },
+  });
+
+  // Check example.com HTTPS request succeeds.
+  const responseCom = await makeHttpsRequest({
+    headers: {
+      Host: "example.com",
+    },
+    path: "/via-https-proxy",
+    port: proxyPort,
+    requestOptions: {
+      ca: readFileSync(caRootCertPath),
+    },
+  });
+
+  expect(responseCom.statusCode).toBe(200);
+  const payloadCom = JSON.parse(responseCom.body) as {
+    path?: string;
+    xForwardedProto?: string;
+  };
+  expect(payloadCom.path).toBe("/via-https-proxy");
+  expect(payloadCom.xForwardedProto).toBe("https");
+
+  // Check we can do our different domain and HTTPS validation still succeeds - example.test
+  const responseTest = await makeHttpsRequest({
+    headers: {
+      Host: "example.test",
+    },
+    path: "/via-https-proxy",
+    port: proxyPort,
+    requestOptions: {
+      ca: readFileSync(caRootCertPath),
+    },
+  });
+
+  expect(responseTest.statusCode).toBe(200);
+  const payloadTest = JSON.parse(responseTest.body) as {
+    path?: string;
+    xForwardedProto?: string;
+  };
+  expect(payloadTest.path).toBe("/via-https-proxy");
+  expect(payloadTest.xForwardedProto).toBe("https");
+});
+
+test("throws when HTTPS proxyProtocol is configured without TLS key/cert", () => {
+  expect(() =>
+    boot({
+      port: 0,
+      proxyProtocol: "https",
+      backends: {
+        "example.com": { servers: [{ url: "http://localhost:3000" }] },
+      },
+    }),
+  ).toThrow(
+    'ProxyConfig.tls must include both "key" and "cert" when proxyProtocol is "https"',
+  );
+});
+
+test("throws when HTTPS proxyProtocol is configured with cert but no key", () => {
+  expect(() =>
+    boot({
+      port: 0,
+      proxyProtocol: "https",
+      tls: {
+        cert: "-----BEGIN CERTIFICATE-----\ninvalid\n-----END CERTIFICATE-----",
+      },
+      backends: {
+        "example.com": { servers: [{ url: "http://localhost:3000" }] },
+      },
+    }),
+  ).toThrow(
+    'ProxyConfig.tls must include both "key" and "cert" when proxyProtocol is "https"',
+  );
 });
 test("one client can make requests to two different paths on the same backend", async () => {
   await createBackendServer({
@@ -654,7 +785,6 @@ function closeServer(server: http.Server) {
   });
 }
 
-
 function delay(ms: number) {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
@@ -737,6 +867,106 @@ function makeRequest({
       request.write(body);
     }
     request.end();
+  });
+}
+
+function makeHttpsRequest({
+  body,
+  headers = {},
+  method = "GET",
+  path = "/",
+  port,
+  requestOptions = {},
+  setHost = true,
+}: {
+  body?: string;
+  headers?: http.OutgoingHttpHeaders;
+  method?: string;
+  path?: string;
+  port: number;
+  requestOptions?: https.RequestOptions;
+  setHost?: boolean;
+}) {
+  return new Promise<{
+    body: string;
+    closed: boolean;
+    ended: boolean;
+    headers: http.IncomingHttpHeaders;
+    statusCode: number | undefined;
+  }>((resolve, reject) => {
+    const request = https.request(
+      {
+        hostname: "127.0.0.1",
+        method,
+        port,
+        path,
+        headers,
+        setHost,
+        ...requestOptions,
+      },
+      (response) => {
+        let body = "";
+
+        response.setEncoding("utf8");
+        response.on("data", (chunk) => {
+          body += chunk;
+        });
+        response.on("end", () => {
+          resolve({
+            body,
+            closed: false,
+            ended: true,
+            headers: response.headers,
+            statusCode: response.statusCode,
+          });
+        });
+        response.on("close", () => {
+          if (!response.complete) {
+            resolve({
+              body,
+              closed: true,
+              ended: false,
+              headers: response.headers,
+              statusCode: response.statusCode,
+            });
+          }
+        });
+        response.on("error", () => {
+          resolve({
+            body,
+            closed: true,
+            ended: false,
+            headers: response.headers,
+            statusCode: response.statusCode,
+          });
+        });
+      },
+    );
+
+    request.on("error", reject);
+    if (body != null) {
+      request.write(body);
+    }
+    request.end();
+  });
+}
+
+async function generateCertificates(
+  options: IssueCertificateOptions = {
+    dnsNames: ["localhost"],
+    ipAddresses: ["127.0.0.1"],
+  },
+) {
+  const baseDirectory = mkdtempSync(join(tmpdir(), "proxy-https-test-"));
+  tempDirectories.push(baseDirectory);
+  const caDirectoryPath = join(baseDirectory, "ca");
+  const issuedDirectory = join(baseDirectory, "issued");
+
+  await generateCa({ outputDirectoryPath: caDirectoryPath });
+  return issueCertificate({
+    outputDirectoryPath: issuedDirectory,
+    caDirectoryPath,
+    ...options,
   });
 }
 
