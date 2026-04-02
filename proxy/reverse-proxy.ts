@@ -1,5 +1,7 @@
 import { createServer } from "node:http";
 import * as http from "node:http";
+import * as https from "node:https";
+import type { TlsOptions } from "node:tls";
 
 /*
   This is a very simple test reverse proxy implementation.
@@ -9,6 +11,16 @@ import * as http from "node:http";
 
 export type ProxyConfig = {
   port?: number;
+  /**
+   * Protocol used for client -> proxy connections.
+   * - http (default)
+   * - https (TLS termination at the proxy)
+   */
+  proxyProtocol?: "http" | "https";
+  /**
+   * TLS certificate options used when proxyProtocol is "https".
+   */
+  tls?: TlsOptions;
   /**
    * Idle timeout in milliseconds for requests to backend servers.
    * This currently covers inactivity on the proxied backend request.
@@ -44,10 +56,18 @@ const DEFAULT_BACKEND_REQUEST_TIMEOUT_MS = 30_000;
 export function boot(opts: ProxyConfig) {
   const port = opts.port ?? process.env.PROXY_PORT ?? 8080;
   const { backends } = opts;
+  const proxyProtocol = opts.proxyProtocol ?? "http";
+  const tlsOptions = opts.tls;
   const backendRequestTimeoutMs =
     opts.backendRequestTimeoutMs ?? DEFAULT_BACKEND_REQUEST_TIMEOUT_MS;
 
-  const server = createServer((clientRequest, proxyResponse) => {
+  if (proxyProtocol === "https" && !hasTlsCertificateAndKey(tlsOptions)) {
+    throw new Error(
+      'ProxyConfig.tls must include both "key" and "cert" when proxyProtocol is "https"',
+    );
+  }
+
+  const requestHandler: http.RequestListener = (clientRequest, proxyResponse) => {
     // Request state.
     let state:
       | { status: "pending" }
@@ -150,6 +170,7 @@ export function boot(opts: ProxyConfig) {
     const forwardedHeaders = getProxiedRequestHeaders({
       proxyRequest: clientRequest,
       hostHeader,
+      proxyProtocol,
     });
 
     // Make request to backend.
@@ -213,13 +234,28 @@ export function boot(opts: ProxyConfig) {
 
     // Proxy the client request data to the backend request.
     clientRequest.pipe(backendRequest);
-  });
+  };
+
+  const server =
+    proxyProtocol === "https"
+      ? https.createServer(
+          // TLS options are validated above for HTTPS mode.
+          tlsOptions as TlsOptions,
+          requestHandler,
+        )
+      : createServer(requestHandler);
 
   server.listen(port, () => {
-    console.log(`Listening on http://localhost:${port}`);
+    console.log(`Listening on ${proxyProtocol}://localhost:${port}`);
   });
 
   return server;
+}
+
+function hasTlsCertificateAndKey(
+  tlsOptions: TlsOptions | undefined,
+): tlsOptions is TlsOptions & { key: NonNullable<TlsOptions["key"]>; cert: NonNullable<TlsOptions["cert"]> } {
+  return tlsOptions?.key != null && tlsOptions.cert != null;
 }
 
 function getHostnameFromHostHeader(hostHeader: string) {
@@ -289,9 +325,11 @@ function getServerDetails({
 function getProxiedRequestHeaders({
   proxyRequest,
   hostHeader,
+  proxyProtocol,
 }: {
   proxyRequest: http.IncomingMessage;
   hostHeader: string;
+  proxyProtocol: "http" | "https";
 }) {
   const forwardedHeaders: http.OutgoingHttpHeaders = {
     ...proxyRequest.headers,
@@ -306,7 +344,7 @@ function getProxiedRequestHeaders({
     forwardedHeaders["x-forwarded-for"] = remoteAddress;
   }
   forwardedHeaders["x-forwarded-host"] = hostHeader;
-  forwardedHeaders["x-forwarded-proto"] = "http";
+  forwardedHeaders["x-forwarded-proto"] = proxyProtocol;
 
   return forwardedHeaders;
 }
