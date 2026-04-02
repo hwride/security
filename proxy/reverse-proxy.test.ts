@@ -394,7 +394,7 @@ test("replaces forwarding headers and preserves other headers", async () => {
   expect(forwardedHeaders.xCustomHeader).toBe("keep-me");
 });
 
-test("supports HTTPS termination for client -> proxy while keeping backend HTTP", async () => {
+test("supports HTTPS termination for client -> proxy for multiple domains", async () => {
   await createBackendServer({
     port: 3000,
     handleRequest: (request, response) => {
@@ -408,10 +408,24 @@ test("supports HTTPS termination for client -> proxy while keeping backend HTTP"
       );
     },
   });
+  await createBackendServer({
+    port: 4000,
+    handleRequest: (request, response) => {
+      response.statusCode = 200;
+      response.setHeader("Content-Type", "application/json");
+      response.end(
+        JSON.stringify({
+          path: request.url,
+          xForwardedProto: request.headers["x-forwarded-proto"],
+        }),
+      );
+    },
+  });
 
+  // Generate a certificate for the reverse proxy supporting all domains it forwards for.
   const { caRootCertPath, privateKeyPath, certPath } =
     await generateCertificates({
-      dnsNames: ["example.com"],
+      dnsNames: ["example.com", "example.test"],
     });
 
   const { proxyPort } = await createProxyServer({
@@ -420,10 +434,12 @@ test("supports HTTPS termination for client -> proxy while keeping backend HTTP"
     tls: { key: readFileSync(privateKeyPath), cert: readFileSync(certPath) },
     backends: {
       "example.com": { servers: [{ url: "http://localhost:3000" }] },
+      "example.test": { servers: [{ url: "http://localhost:4000" }] },
     },
   });
 
-  const response = await makeHttpsRequest({
+  // Check example.com HTTPS request succeeds.
+  const responseCom = await makeHttpsRequest({
     headers: {
       Host: "example.com",
     },
@@ -434,13 +450,33 @@ test("supports HTTPS termination for client -> proxy while keeping backend HTTP"
     },
   });
 
-  expect(response.statusCode).toBe(200);
-  const payload = JSON.parse(response.body) as {
+  expect(responseCom.statusCode).toBe(200);
+  const payloadCom = JSON.parse(responseCom.body) as {
     path?: string;
     xForwardedProto?: string;
   };
-  expect(payload.path).toBe("/via-https-proxy");
-  expect(payload.xForwardedProto).toBe("https");
+  expect(payloadCom.path).toBe("/via-https-proxy");
+  expect(payloadCom.xForwardedProto).toBe("https");
+
+  // Check we can do our different domain and HTTPS validation still succeeds - example.test
+  const responseTest = await makeHttpsRequest({
+    headers: {
+      Host: "example.test",
+    },
+    path: "/via-https-proxy",
+    port: proxyPort,
+    requestOptions: {
+      ca: readFileSync(caRootCertPath),
+    },
+  });
+
+  expect(responseTest.statusCode).toBe(200);
+  const payloadTest = JSON.parse(responseTest.body) as {
+    path?: string;
+    xForwardedProto?: string;
+  };
+  expect(payloadTest.path).toBe("/via-https-proxy");
+  expect(payloadTest.xForwardedProto).toBe("https");
 });
 
 test("throws when HTTPS proxyProtocol is configured without TLS key/cert", () => {
