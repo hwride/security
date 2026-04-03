@@ -6,7 +6,7 @@ import * as tls from "node:tls";
 import { TlsOptions } from "node:tls";
 import { afterEach, expect, test } from "vitest";
 import { generateCa } from "../certgen/generate-ca.ts";
-import { issueCertificate } from "../certgen/issue-cert.ts";
+import { EKUVal, issueCertificate } from "../certgen/issue-cert.ts";
 
 const serverPort = 9443;
 const buildTestDirectoryPath = resolve(process.cwd(), "build-test");
@@ -86,7 +86,106 @@ test("failed mTLS request when client does not provide certificate", async () =>
   });
 });
 
-async function generateMtlsCertificates() {
+test("successful mTLS request when neither certificate specifies EKU", async () => {
+  expect.hasAssertions();
+
+  const {
+    caRootCertPath,
+    serverPrivateKeyPath,
+    serverCertPath,
+    clientPrivateKeyPath,
+    clientCertPath,
+  } = await generateMtlsCertificates({
+    serverExtendedKeyUsage: [],
+    clientExtendedKeyUsage: [],
+  });
+
+  await bootHttpsServer({
+    ca: readFileSync(caRootCertPath),
+    cert: readFileSync(serverCertPath),
+    key: readFileSync(serverPrivateKeyPath),
+  });
+
+  const responseBody = await makeHttpsRequest({
+    ca: readFileSync(caRootCertPath),
+    cert: readFileSync(clientCertPath),
+    key: readFileSync(clientPrivateKeyPath),
+  });
+
+  expect(responseBody).toBe("mTLS response");
+});
+
+test("failed mTLS request when client certificate specifies serverAuth in EKU", async () => {
+  expect.hasAssertions();
+
+  const {
+    caRootCertPath,
+    serverPrivateKeyPath,
+    serverCertPath,
+    clientPrivateKeyPath,
+    clientCertPath,
+  } = await generateMtlsCertificates({
+    serverExtendedKeyUsage: ["serverAuth"],
+    clientExtendedKeyUsage: ["serverAuth"],
+  });
+
+  await bootHttpsServer({
+    ca: readFileSync(caRootCertPath),
+    cert: readFileSync(serverCertPath),
+    key: readFileSync(serverPrivateKeyPath),
+  });
+
+  await expect(
+    makeHttpsRequest({
+      ca: readFileSync(caRootCertPath),
+      cert: readFileSync(clientCertPath),
+      key: readFileSync(clientPrivateKeyPath),
+    }),
+  ).rejects.toMatchObject({
+    // Server sees certificate is incorrect, so simplify closes the connection.
+    code: "ECONNRESET",
+  });
+});
+
+test("failed mTLS request when server certificate specifies clientAuth in EKU", async () => {
+  expect.hasAssertions();
+
+  const {
+    caRootCertPath,
+    serverPrivateKeyPath,
+    serverCertPath,
+    clientPrivateKeyPath,
+    clientCertPath,
+  } = await generateMtlsCertificates({
+    serverExtendedKeyUsage: ["clientAuth"],
+    clientExtendedKeyUsage: ["clientAuth"],
+  });
+
+  await bootHttpsServer({
+    ca: readFileSync(caRootCertPath),
+    cert: readFileSync(serverCertPath),
+    key: readFileSync(serverPrivateKeyPath),
+  });
+
+  await expect(
+    makeHttpsRequest({
+      ca: readFileSync(caRootCertPath),
+      cert: readFileSync(clientCertPath),
+      key: readFileSync(clientPrivateKeyPath),
+    }),
+  ).rejects.toMatchObject({
+    // https://nodejs.org/api/tls.html#x509-certificate-error-codes
+    code: "INVALID_PURPOSE", // Unsupported certificate purpose.
+  });
+});
+
+async function generateMtlsCertificates({
+  serverExtendedKeyUsage = ["serverAuth"],
+  clientExtendedKeyUsage = ["clientAuth"],
+}: {
+  serverExtendedKeyUsage?: EKUVal[];
+  clientExtendedKeyUsage?: EKUVal[];
+} = {}) {
   const caDirectoryPath = join(buildTestDirectoryPath, "ca");
   const serverCertificateDirectoryPath = join(
     buildTestDirectoryPath,
@@ -106,7 +205,7 @@ async function generateMtlsCertificates() {
       outputDirectoryPath: serverCertificateDirectoryPath,
       caDirectoryPath,
       dnsNames: ["localhost"],
-      extendedKeyUsage: ["serverAuth"],
+      extendedKeyUsage: serverExtendedKeyUsage,
     });
 
   const { privateKeyPath: clientPrivateKeyPath, certPath: clientCertPath } =
@@ -115,7 +214,7 @@ async function generateMtlsCertificates() {
       caDirectoryPath,
       commonName: "mtls-client.local",
       dnsNames: ["mtls-client.local"],
-      extendedKeyUsage: ["clientAuth"],
+      extendedKeyUsage: clientExtendedKeyUsage,
     });
 
   return {

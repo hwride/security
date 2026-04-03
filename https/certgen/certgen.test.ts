@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { rm, stat } from "node:fs/promises";
+import { readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import test, { afterEach } from "node:test";
 import { generateCa } from "./generate-ca.ts";
@@ -132,6 +132,26 @@ test("issue-cert writes the requested extended key usages", async () => {
   const bothPurposes = await getCertificatePurposes(bothCertificate.certPath);
   assert.match(bothPurposes, /SSL client : Yes/);
   assert.match(bothPurposes, /SSL server : Yes/);
+});
+
+test("issue-cert can omit the extended key usage extension", async () => {
+  const caDirectoryPath = join(buildTestDirectoryPath, "ca");
+  const issuedCertificateDirectoryPath = join(buildTestDirectoryPath, "issued-no-eku");
+
+  await generateCa({ outputDirectoryPath: caDirectoryPath });
+
+  await issueCertificate({
+    outputDirectoryPath: issuedCertificateDirectoryPath,
+    caDirectoryPath,
+    dnsNames: ["localhost"],
+    extendedKeyUsage: [],
+  });
+
+  const extensionsFileContents = await readFile(
+    join(issuedCertificateDirectoryPath, "cert-v3.ext"),
+    "utf8",
+  );
+  assert.doesNotMatch(extensionsFileContents, /extendedKeyUsage/);
 });
 
 async function assertPathMatchesAndFileExists(

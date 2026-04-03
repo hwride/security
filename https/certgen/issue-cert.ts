@@ -248,8 +248,11 @@ async function writeCertificateExtensionsFile(
     "basicConstraints=CA:FALSE",
     // Allow normal TLS leaf-certificate key uses.
     "keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment",
-    `extendedKeyUsage = ${extendedKeyUsage.join(", ")}`,
   ];
+
+  if (extendedKeyUsage.length > 0) {
+    extfileLines.push(`extendedKeyUsage = ${extendedKeyUsage.join(", ")}`);
+  }
 
   if (hasSubjectAlternativeNames) {
     extfileLines.push(
