@@ -1,4 +1,3 @@
 build-ca
 build-issued-cert
-build-test-ca
-build-test-issued-cert
+build-test

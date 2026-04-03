@@ -5,6 +5,7 @@
     "install-ca": "node install-ca.ts",
     "uninstall-ca": "node uninstall-ca.ts",
     "issue-cert": "node issue-cert.ts",
+    "verify-cert": "node verify-cert.ts",
     "types": "tsc --noEmit",
     "test": "node --test certgen.test.ts"
   },

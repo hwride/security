@@ -10,6 +10,7 @@ import {
   getIssuedCertCsrPath,
   getIssuedCertExtensionsPath,
   getIssuedCertPath,
+  getIssuedCertPkcs12Path,
   getIssuedCertPrivateKeyPath,
   getRootCaCertPath,
 } from "./util/paths.ts";
@@ -17,6 +18,9 @@ import {
 if (isMainModule()) {
   issueCertificate({ dnsNames: ["localhost"] }).catch(handleFatalError);
 }
+
+/** Extended Key Usage (EKU) https://docs.openssl.org/3.0/man5/x509v3_config/#key-usage */
+export type EKUVal = "serverAuth" | "clientAuth";
 
 export type IssueCertificateOptions = {
   /** Directory to output the private key, certificate and other build artifacts. */
@@ -34,8 +38,13 @@ export type IssueCertificateOptions = {
   ipAddresses?: string[];
   /** How many days until the certificate expires. */
   certificateDays?: number;
-  /** Whether to run verification after creation that the certificate is signed by the CA. */
-  verifyCertificateAfterCreation?: boolean;
+  /** Which Extended Key Usage (EKU) values to write into the leaf certificate. */
+  extendedKeyUsage?: EKUVal[];
+  /**
+   * PKCS#12 (`.p12`) is a bundle format that packages the issued certificate together with its
+   * private key and, here, the CA certificate.
+   */
+  generatePkcs12?: boolean;
 };
 
 type IssueCertificateResult = {
@@ -44,6 +53,7 @@ type IssueCertificateResult = {
   privateKeyPath: string;
   certCsrPath: string;
   certPath: string;
+  pkcs12Path?: string;
 };
 
 /**
@@ -52,7 +62,7 @@ type IssueCertificateResult = {
  * 2) Create a certificate signing request, signed by the private key.
  * 3) Create a certificate from the certificate signing request,
  *    signed by the certificate authority's private key.
- * 4) Verify the certificate chains back to the certificate authority certificate.
+ * 4) Optionally package the certificate, private key and CA certificate as PKCS#12.
  */
 export async function issueCertificate({
   outputDirectoryPath = getDefaultBuildIssuedCertPath(),
@@ -61,7 +71,8 @@ export async function issueCertificate({
   dnsNames = [],
   ipAddresses = [],
   certificateDays = 5,
-  verifyCertificateAfterCreation = true,
+  extendedKeyUsage = ["serverAuth"],
+  generatePkcs12 = true,
 }: IssueCertificateOptions = {}): Promise<IssueCertificateResult> {
   const caPrivateKeyPath = getCaPrivateKeyPath(caDirectoryPath);
   const caRootCertPath = getRootCaCertPath(caDirectoryPath);
@@ -96,15 +107,22 @@ export async function issueCertificate({
     dnsNames,
     ipAddresses,
     certificateDays,
+    extendedKeyUsage,
     caRootCertPath,
     caPrivateKeyPath,
     certCsrPath,
   );
 
-  // Check our certificate can be verified from the certificate authority.
-  if (verifyCertificateAfterCreation) {
-    await verifyCertificate(caRootCertPath, certPath);
-  }
+  const pkcs12Path = generatePkcs12
+    ? await generatePkcs12Bundle(
+        outputDirectoryPath,
+        privateKeyPath,
+        certPath,
+        caRootCertPath,
+      )
+    : undefined;
+
+  logIssuedCertificateViewCommands(caRootCertPath, certPath, pkcs12Path);
 
   return {
     caPrivateKeyPath,
@@ -112,6 +130,7 @@ export async function issueCertificate({
     privateKeyPath,
     certCsrPath,
     certPath,
+    pkcs12Path,
   };
 }
 
@@ -163,6 +182,7 @@ async function issueCertificateFromCsr(
   dnsNames: string[],
   ipAddresses: string[],
   certificateDays: number,
+  extendedKeyUsage: EKUVal[],
   caRootCertPath: string,
   caPrivateKeyPath: string,
   certCsrPath: string,
@@ -171,6 +191,7 @@ async function issueCertificateFromCsr(
     outputDirectoryPath,
     dnsNames,
     ipAddresses,
+    extendedKeyUsage,
   );
   const certPath = getIssuedCertPath(outputDirectoryPath);
   console.log("");
@@ -205,6 +226,7 @@ async function writeCertificateExtensionsFile(
   outputDirectoryPath: string,
   dnsNames: string[],
   ipAddresses: string[],
+  extendedKeyUsage: EKUVal[],
 ) {
   const certExtensionsPath = getIssuedCertExtensionsPath(outputDirectoryPath);
 
@@ -228,6 +250,10 @@ async function writeCertificateExtensionsFile(
     "keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment",
   ];
 
+  if (extendedKeyUsage.length > 0) {
+    extfileLines.push(`extendedKeyUsage = ${extendedKeyUsage.join(", ")}`);
+  }
+
   if (hasSubjectAlternativeNames) {
     extfileLines.push(
       // List the hostnames and IPs this certificate is valid for.
@@ -245,20 +271,72 @@ async function writeCertificateExtensionsFile(
   return certExtensionsPath;
 }
 
-export async function verifyCertificate(
+async function generatePkcs12Bundle(
+  outputDirectoryPath: string,
+  privateKeyPath: string,
+  certPath: string,
+  caRootCertPath: string,
+) {
+  const pkcs12Path = getIssuedCertPkcs12Path(outputDirectoryPath);
+  console.log("");
+  console.log(
+    "Packaging PKCS#12 bundle containing issued cert, private key, and also CA cert ...",
+  );
+  await openssl("pkcs12", [
+    // Write a PKCS#12 bundle instead of reading one.
+    "-export",
+    // Output path for the generated .p12 file.
+    "-out",
+    pkcs12Path,
+    // The certificate to package into the bundle.
+    "-in",
+    certPath,
+    // The private key that matches the bundled certificate.
+    "-inkey",
+    privateKeyPath,
+    // Include an additional certificate in the bundle, such as a CA or intermediate certificate.
+    "-certfile",
+    caRootCertPath,
+    // Use an empty export password for local development/testing convenience.
+    "-passout",
+    "pass:",
+  ]);
+  console.log(`Created: ${pkcs12Path}`);
+
+  return pkcs12Path;
+}
+
+/**
+ * Log a few openssl CLI commands for inspecting the certificates.
+ */
+function logIssuedCertificateViewCommands(
   caRootCertPath: string,
   certPath: string,
+  pkcs12Path: string | undefined,
 ) {
   console.log("");
-  console.log("Verifying signed certificate against CA...");
-  const verificationResult = await openssl("verify", [
-    "-x509_strict",
-    "-CAfile",
-    caRootCertPath,
-    certPath,
-  ]);
-  console.log("Verification successful.");
-  return verificationResult;
+  console.log(
+    `View contents of CA certificate: openssl x509 -in ${caRootCertPath} -text -noout`,
+  );
+  console.log(
+    `Verify issued certificate against CA certificate: openssl verify -x509_strict -CAfile ${caRootCertPath} ${certPath}`,
+  );
+  console.log(
+    `View contents of issued certificate: openssl x509 -in ${certPath} -text -noout`,
+  );
+
+  if (pkcs12Path) {
+    console.log(
+      `View overview of PKCS#12 bundle: openssl pkcs12 -in ${pkcs12Path} -info -noout`,
+    );
+    console.log(
+      `View contents of CA certificate, via PKCS#12 bundle: openssl pkcs12 -in ${pkcs12Path} -cacerts -nokeys | openssl x509 -text -noout`,
+    );
+    console.log(
+      `View contents of issued certificate, via PKCS#12 bundle: openssl pkcs12 -in ${pkcs12Path} -clcerts -nokeys | openssl x509 -text -noout`,
+    );
+    console.log("Password is currently empty, just hit enter when prompted.");
+  }
 }
 
 function assertFileExists(filePath: string, errorMessage: string) {
