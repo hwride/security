@@ -31,6 +31,10 @@ export function getIssuedCertPath(buildIssuedCertPath: string) {
   return join(buildIssuedCertPath, "cert.crt");
 }
 
+export function getIssuedCertPkcs12Path(buildIssuedCertPath: string) {
+  return join(buildIssuedCertPath, "cert.p12");
+}
+
 export function getIssuedCertExtensionsPath(buildIssuedCertPath: string) {
   return join(buildIssuedCertPath, "cert-v3.ext");
 }

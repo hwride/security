@@ -10,6 +10,7 @@ import {
   getIssuedCertCsrPath,
   getIssuedCertExtensionsPath,
   getIssuedCertPath,
+  getIssuedCertPkcs12Path,
   getIssuedCertPrivateKeyPath,
   getRootCaCertPath,
 } from "./util/paths.ts";
@@ -39,6 +40,11 @@ export type IssueCertificateOptions = {
   certificateDays?: number;
   /** Which Extended Key Usage (EKU) values to write into the leaf certificate. */
   extendedKeyUsage?: EKUVal[];
+  /**
+   * PKCS#12 (`.p12`) is a bundle format that packages the issued certificate together with its
+   * private key and, here, the CA certificate.
+   */
+  generatePkcs12?: boolean;
   /** Whether to run verification after creation that the certificate is signed by the CA. */
   verifyCertificateAfterCreation?: boolean;
 };
@@ -49,6 +55,7 @@ type IssueCertificateResult = {
   privateKeyPath: string;
   certCsrPath: string;
   certPath: string;
+  pkcs12Path?: string;
 };
 
 /**
@@ -58,6 +65,7 @@ type IssueCertificateResult = {
  * 3) Create a certificate from the certificate signing request,
  *    signed by the certificate authority's private key.
  * 4) Verify the certificate chains back to the certificate authority certificate.
+ * 5) Optionally package the certificate, private key and CA certificate as PKCS#12.
  */
 export async function issueCertificate({
   outputDirectoryPath = getDefaultBuildIssuedCertPath(),
@@ -67,6 +75,7 @@ export async function issueCertificate({
   ipAddresses = [],
   certificateDays = 5,
   extendedKeyUsage = ["serverAuth"],
+  generatePkcs12 = false,
   verifyCertificateAfterCreation = true,
 }: IssueCertificateOptions = {}): Promise<IssueCertificateResult> {
   const caPrivateKeyPath = getCaPrivateKeyPath(caDirectoryPath);
@@ -113,12 +122,22 @@ export async function issueCertificate({
     await verifyCertificate(caRootCertPath, certPath);
   }
 
+  const pkcs12Path = generatePkcs12
+    ? await generatePkcs12Bundle(
+        outputDirectoryPath,
+        privateKeyPath,
+        certPath,
+        caRootCertPath,
+      )
+    : undefined;
+
   return {
     caPrivateKeyPath,
     caRootCertPath,
     privateKeyPath,
     certCsrPath,
     certPath,
+    pkcs12Path,
   };
 }
 
@@ -254,6 +273,35 @@ async function writeCertificateExtensionsFile(
   console.log(`Created: ${certExtensionsPath}`);
 
   return certExtensionsPath;
+}
+
+async function generatePkcs12Bundle(
+  outputDirectoryPath: string,
+  privateKeyPath: string,
+  certPath: string,
+  caRootCertPath: string,
+) {
+  const pkcs12Path = getIssuedCertPkcs12Path(outputDirectoryPath);
+  console.log("");
+  console.log(
+    "Packaging PKCS#12 bundle containing issued cert, private key, and also CA cert ...",
+  );
+  await openssl("pkcs12", [
+    "-export",
+    "-out",
+    pkcs12Path,
+    "-inkey",
+    privateKeyPath,
+    "-in",
+    certPath,
+    "-certfile",
+    caRootCertPath,
+    "-passout",
+    "pass:",
+  ]);
+  console.log(`Created: ${pkcs12Path}`);
+
+  return pkcs12Path;
 }
 
 export async function verifyCertificate(

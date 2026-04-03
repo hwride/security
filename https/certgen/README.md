@@ -34,15 +34,24 @@ This script issues a TLS certificate from a CSR using the CA we generated. You c
 generate new certificates, each signed by the same generated certificate authority. The CLI defaults to a
 certificate valid for `localhost`.
 
-When using `issueCertificate(...)` programmatically, the SAN extension is derived from `dnsNames` and
+- When using `issueCertificate(...)` programmatically, the SAN extension is derived from `dnsNames` and
 `ipAddresses`. If both arrays are empty, the certificate is issued without SAN entries.
 `commonName` is configurable; by default it uses the first DNS SAN, otherwise the first IP SAN,
-otherwise `common-name-default`.
+otherwise `common-name-default`. 
+- `extendedKeyUsage` controls the Extended Key Usage written to the
+leaf certificate.
+- Set `generatePkcs12: true` to also create a `.p12` bundle containing the issued
+certificate, private key, and CA certificate.
 
 Output directory `build-issued-cert` containing:
 - `private-key.key`: The private key for the issued certificate.
 - `cert.crt`: The issued certificate.
+- `cert.p12`: Optional PKCS#12 bundle created when `generatePkcs12` is enabled.
 - `cert.csr`: The certificate signing request used to issue the certificate.
 - `cert-v3.ext`: Extensions used as part of generating the certificate.
 
 You can use the private key and certificate to boot an HTTPS server.
+
+## Useful OpenSSL commands
+- View a certificate's contents: `openssl x509 -in path/to/cert.crt -text -noout`
+- View a PKCS#12 bundle's contents: `openssl pkcs12 -in path/to/cert.p12 -info -noout`

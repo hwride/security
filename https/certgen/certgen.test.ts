@@ -35,6 +35,7 @@ test("generate-ca output can be used by issue-cert and verified explicitly", asy
     outputDirectoryPath: issuedCertificateDirectoryPath,
     caDirectoryPath,
     dnsNames: ["localhost"],
+    generatePkcs12: true,
     verifyCertificateAfterCreation: false,
   });
 
@@ -50,6 +51,10 @@ test("generate-ca output can be used by issue-cert and verified explicitly", asy
     issuedCertificate.certPath,
     join(issuedCertificateDirectoryPath, "cert.crt"),
   );
+  await assertPathMatchesAndFileExists(
+    issuedCertificate.pkcs12Path,
+    join(issuedCertificateDirectoryPath, "cert.p12"),
+  );
   assert.equal(
     issuedCertificate.caPrivateKeyPath,
     join(caDirectoryPath, "ca-private-key.key"),
@@ -62,6 +67,7 @@ test("generate-ca output can be used by issue-cert and verified explicitly", asy
   await assertFileExistsWithContent(
     join(issuedCertificateDirectoryPath, "cert-v3.ext"),
   );
+  await assertPkcs12BundleIsReadable(issuedCertificate.pkcs12Path);
 
   // Verify the issues certificate is signed by the CA.
   const verificationResult = await verifyCertificate(
@@ -147,4 +153,16 @@ async function getCertificatePurposes(certPath: string) {
   const result = await openssl("x509", ["-in", certPath, "-noout", "-purpose"]);
 
   return result.stdout;
+}
+
+async function assertPkcs12BundleIsReadable(pkcs12Path: string | undefined) {
+  assert.ok(pkcs12Path);
+  await openssl("pkcs12", [
+    "-in",
+    pkcs12Path,
+    "-info",
+    "-noout",
+    "-passin",
+    "pass:",
+  ]);
 }
