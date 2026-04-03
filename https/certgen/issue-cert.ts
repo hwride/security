@@ -75,7 +75,7 @@ export async function issueCertificate({
   ipAddresses = [],
   certificateDays = 5,
   extendedKeyUsage = ["serverAuth"],
-  generatePkcs12 = false,
+  generatePkcs12 = true,
   verifyCertificateAfterCreation = true,
 }: IssueCertificateOptions = {}): Promise<IssueCertificateResult> {
   const caPrivateKeyPath = getCaPrivateKeyPath(caDirectoryPath);
@@ -130,6 +130,8 @@ export async function issueCertificate({
         caRootCertPath,
       )
     : undefined;
+
+  logIssuedCertificateViewCommands(caRootCertPath, certPath, pkcs12Path);
 
   return {
     caPrivateKeyPath,
@@ -287,21 +289,60 @@ async function generatePkcs12Bundle(
     "Packaging PKCS#12 bundle containing issued cert, private key, and also CA cert ...",
   );
   await openssl("pkcs12", [
+    // Write a PKCS#12 bundle instead of reading one.
     "-export",
+    // Output path for the generated .p12 file.
     "-out",
     pkcs12Path,
-    "-inkey",
-    privateKeyPath,
+    // The certificate to package into the bundle.
     "-in",
     certPath,
+    // The private key that matches the bundled certificate.
+    "-inkey",
+    privateKeyPath,
+    // Include an additional certificate in the bundle, such as a CA or intermediate certificate.
     "-certfile",
     caRootCertPath,
+    // Use an empty export password for local development/testing convenience.
     "-passout",
     "pass:",
   ]);
   console.log(`Created: ${pkcs12Path}`);
 
   return pkcs12Path;
+}
+
+/**
+ * Log a few openssl CLI commands for inspecting the certificates.
+ */
+function logIssuedCertificateViewCommands(
+  caRootCertPath: string,
+  certPath: string,
+  pkcs12Path: string | undefined,
+) {
+  console.log("");
+  console.log(
+    `View contents of CA certificate: openssl x509 -in ${caRootCertPath} -text -noout`,
+  );
+  console.log(
+    `Verify issued certificate against CA certificate: openssl verify -x509_strict -CAfile ${caRootCertPath} ${certPath}`,
+  );
+  console.log(
+    `View contents of issued certificate: openssl x509 -in ${certPath} -text -noout`,
+  );
+
+  if (pkcs12Path) {
+    console.log(
+      `View overview of PKCS#12 bundle: openssl pkcs12 -in ${pkcs12Path} -info -noout`,
+    );
+    console.log(
+      `View contents of CA certificate, via PKCS#12 bundle: openssl pkcs12 -in ${pkcs12Path} -cacerts -nokeys | openssl x509 -text -noout`,
+    );
+    console.log(
+      `View contents of issued certificate, via PKCS#12 bundle: openssl pkcs12 -in ${pkcs12Path} -clcerts -nokeys | openssl x509 -text -noout`,
+    );
+    console.log("Password is currently empty, just hit enter when prompted.");
+  }
 }
 
 export async function verifyCertificate(

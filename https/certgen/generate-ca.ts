@@ -68,6 +68,8 @@ export async function generateCa({
     "/C=UK/ST=London/L=London/O=Test CA Org/OU=IT/CN=test-ca.local",
   ]);
   console.log(`Created: ${caRootCertPath}`);
+  console.log("");
+  console.log(`View contents of CA certificate: openssl x509 -in ${caRootCertPath} -text -noout`);
 
   return {
     caPrivateKeyPath,
