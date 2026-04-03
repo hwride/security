@@ -4,8 +4,8 @@ import { join } from "node:path";
 import test, { afterEach } from "node:test";
 import { generateCa } from "./generate-ca.ts";
 import { openssl } from "../openssl-node/openssl-node.ts";
-
-import { issueCertificate, verifyCertificate } from "./issue-cert.ts";
+import { issueCertificate } from "./issue-cert.ts";
+import { verifyCertificate } from "./verify-cert.ts";
 
 const buildTestDirectoryPath = "build-test";
 afterEach(async () => {

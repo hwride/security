@@ -336,22 +336,6 @@ function logIssuedCertificateViewCommands(
   }
 }
 
-export async function verifyCertificate(
-  caRootCertPath: string,
-  certPath: string,
-) {
-  console.log("");
-  console.log("Verifying signed certificate against CA...");
-  const verificationResult = await openssl("verify", [
-    "-x509_strict",
-    "-CAfile",
-    caRootCertPath,
-    certPath,
-  ]);
-  console.log("Verification successful.");
-  return verificationResult;
-}
-
 function assertFileExists(filePath: string, errorMessage: string) {
   if (existsSync(filePath)) {
     return;
