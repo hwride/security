@@ -18,6 +18,9 @@ if (isMainModule()) {
   issueCertificate({ dnsNames: ["localhost"] }).catch(handleFatalError);
 }
 
+/** Extended Key Usage (EKU) https://docs.openssl.org/3.0/man5/x509v3_config/#key-usage */
+export type EKUVal = "serverAuth" | "clientAuth";
+
 export type IssueCertificateOptions = {
   /** Directory to output the private key, certificate and other build artifacts. */
   outputDirectoryPath?: string;
@@ -34,6 +37,8 @@ export type IssueCertificateOptions = {
   ipAddresses?: string[];
   /** How many days until the certificate expires. */
   certificateDays?: number;
+  /** Which Extended Key Usage (EKU) values to write into the leaf certificate. */
+  extendedKeyUsage?: EKUVal[];
   /** Whether to run verification after creation that the certificate is signed by the CA. */
   verifyCertificateAfterCreation?: boolean;
 };
@@ -61,6 +66,7 @@ export async function issueCertificate({
   dnsNames = [],
   ipAddresses = [],
   certificateDays = 5,
+  extendedKeyUsage = ["serverAuth"],
   verifyCertificateAfterCreation = true,
 }: IssueCertificateOptions = {}): Promise<IssueCertificateResult> {
   const caPrivateKeyPath = getCaPrivateKeyPath(caDirectoryPath);
@@ -96,6 +102,7 @@ export async function issueCertificate({
     dnsNames,
     ipAddresses,
     certificateDays,
+    extendedKeyUsage,
     caRootCertPath,
     caPrivateKeyPath,
     certCsrPath,
@@ -163,6 +170,7 @@ async function issueCertificateFromCsr(
   dnsNames: string[],
   ipAddresses: string[],
   certificateDays: number,
+  extendedKeyUsage: EKUVal[],
   caRootCertPath: string,
   caPrivateKeyPath: string,
   certCsrPath: string,
@@ -171,6 +179,7 @@ async function issueCertificateFromCsr(
     outputDirectoryPath,
     dnsNames,
     ipAddresses,
+    extendedKeyUsage,
   );
   const certPath = getIssuedCertPath(outputDirectoryPath);
   console.log("");
@@ -205,6 +214,7 @@ async function writeCertificateExtensionsFile(
   outputDirectoryPath: string,
   dnsNames: string[],
   ipAddresses: string[],
+  extendedKeyUsage: EKUVal[],
 ) {
   const certExtensionsPath = getIssuedCertExtensionsPath(outputDirectoryPath);
 
@@ -226,6 +236,7 @@ async function writeCertificateExtensionsFile(
     "basicConstraints=CA:FALSE",
     // Allow normal TLS leaf-certificate key uses.
     "keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment",
+    `extendedKeyUsage = ${extendedKeyUsage.join(", ")}`,
   ];
 
   if (hasSubjectAlternativeNames) {
