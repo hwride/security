@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
+import { isIP } from "node:net";
 import { openssl } from "../openssl-node/openssl-node.ts";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,7 +17,7 @@ import {
 } from "./util/paths.ts";
 
 if (isMainModule()) {
-  issueCertificate({ dnsNames: ["localhost"] }).catch(handleFatalError);
+  main().catch(handleFatalError);
 }
 
 /** Extended Key Usage (EKU) https://docs.openssl.org/3.0/man5/x509v3_config/#key-usage */
@@ -55,6 +56,51 @@ type IssueCertificateResult = {
   certPath: string;
   pkcs12Path?: string;
 };
+
+async function main() {
+  const cliOptions = parseIssueCertificateCliArgs(process.argv.slice(2));
+  await issueCertificate(cliOptions);
+}
+
+export function parseIssueCertificateCliArgs(
+  cliArgs: string[],
+): IssueCertificateOptions {
+  const sanValues: string[] = [];
+  let isClientCertificate = false;
+
+  // If --client is an arg, this specifies this as a client cert.
+  for (const cliArg of cliArgs) {
+    if (cliArg === "--client") {
+      isClientCertificate = true;
+      continue;
+    } else if (cliArg.startsWith("-")) {
+      throw new Error(`Unknown option: ${cliArg}`);
+    }
+
+    sanValues.push(cliArg);
+  }
+
+  // All other args: if they are an IP they specify an IP SAN to use,
+  // otherwise we assume they are DNS SANs to use.
+  const requestedSanValues = sanValues.length > 0 ? sanValues : ["localhost"];
+  const dnsNames: string[] = [];
+  const ipAddresses: string[] = [];
+
+  for (const subjectAlternativeName of requestedSanValues) {
+    if (isIP(subjectAlternativeName)) {
+      ipAddresses.push(subjectAlternativeName);
+      continue;
+    }
+
+    dnsNames.push(subjectAlternativeName);
+  }
+
+  return {
+    dnsNames,
+    ipAddresses,
+    extendedKeyUsage: [isClientCertificate ? "clientAuth" : "serverAuth"],
+  };
+}
 
 /**
  * Issues a TLS certificate from an existing certificate authority (CA):

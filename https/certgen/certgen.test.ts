@@ -4,7 +4,7 @@ import { join } from "node:path";
 import test, { afterEach } from "node:test";
 import { generateCa } from "./generate-ca.ts";
 import { openssl } from "../openssl-node/openssl-node.ts";
-import { issueCertificate } from "./issue-cert.ts";
+import { issueCertificate, parseIssueCertificateCliArgs } from "./issue-cert.ts";
 import { verifyCertificate } from "./verify-cert.ts";
 
 const buildTestDirectoryPath = "build-test";
@@ -152,6 +152,48 @@ test("issue-cert can omit the extended key usage extension", async () => {
     "utf8",
   );
   assert.doesNotMatch(extensionsFileContents, /extendedKeyUsage/);
+});
+
+test("issue-cert CLI defaults to localhost server certificate", () => {
+  const options = parseIssueCertificateCliArgs([]);
+
+  assert.deepEqual(options, {
+    dnsNames: ["localhost"],
+    ipAddresses: [],
+    extendedKeyUsage: ["serverAuth"],
+  });
+});
+
+test("issue-cert CLI splits positional SANs into DNS names and IP addresses", () => {
+  const options = parseIssueCertificateCliArgs([
+    "localhost",
+    "example.test",
+    "127.0.0.1",
+    "::1",
+  ]);
+
+  assert.deepEqual(options, {
+    dnsNames: ["localhost", "example.test"],
+    ipAddresses: ["127.0.0.1", "::1"],
+    extendedKeyUsage: ["serverAuth"],
+  });
+});
+
+test("issue-cert CLI can request a client certificate", () => {
+  const options = parseIssueCertificateCliArgs(["--client", "mtls-client.local"]);
+
+  assert.deepEqual(options, {
+    dnsNames: ["mtls-client.local"],
+    ipAddresses: [],
+    extendedKeyUsage: ["clientAuth"],
+  });
+});
+
+test("issue-cert CLI rejects unknown options", () => {
+  assert.throws(
+    () => parseIssueCertificateCliArgs(["--server"]),
+    /Unknown option: --server/,
+  );
 });
 
 async function assertPathMatchesAndFileExists(
