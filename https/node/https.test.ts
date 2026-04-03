@@ -215,7 +215,6 @@ test("failed request due to expired certificate", async () => {
     await generateCertificates({
       dnsNames: ["localhost"],
       certificateDays: 0,
-      verifyCertificateAfterCreation: false,
     });
 
   await bootHttpsServer(certPath, privateKeyPath);

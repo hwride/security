@@ -45,8 +45,6 @@ export type IssueCertificateOptions = {
    * private key and, here, the CA certificate.
    */
   generatePkcs12?: boolean;
-  /** Whether to run verification after creation that the certificate is signed by the CA. */
-  verifyCertificateAfterCreation?: boolean;
 };
 
 type IssueCertificateResult = {
@@ -64,8 +62,7 @@ type IssueCertificateResult = {
  * 2) Create a certificate signing request, signed by the private key.
  * 3) Create a certificate from the certificate signing request,
  *    signed by the certificate authority's private key.
- * 4) Verify the certificate chains back to the certificate authority certificate.
- * 5) Optionally package the certificate, private key and CA certificate as PKCS#12.
+ * 4) Optionally package the certificate, private key and CA certificate as PKCS#12.
  */
 export async function issueCertificate({
   outputDirectoryPath = getDefaultBuildIssuedCertPath(),
@@ -76,7 +73,6 @@ export async function issueCertificate({
   certificateDays = 5,
   extendedKeyUsage = ["serverAuth"],
   generatePkcs12 = true,
-  verifyCertificateAfterCreation = true,
 }: IssueCertificateOptions = {}): Promise<IssueCertificateResult> {
   const caPrivateKeyPath = getCaPrivateKeyPath(caDirectoryPath);
   const caRootCertPath = getRootCaCertPath(caDirectoryPath);
@@ -116,11 +112,6 @@ export async function issueCertificate({
     caPrivateKeyPath,
     certCsrPath,
   );
-
-  // Check our certificate can be verified from the certificate authority.
-  if (verifyCertificateAfterCreation) {
-    await verifyCertificate(caRootCertPath, certPath);
-  }
 
   const pkcs12Path = generatePkcs12
     ? await generatePkcs12Bundle(

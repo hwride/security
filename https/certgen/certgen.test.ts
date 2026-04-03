@@ -36,7 +36,6 @@ test("generate-ca output can be used by issue-cert and verified explicitly", asy
     caDirectoryPath,
     dnsNames: ["localhost"],
     generatePkcs12: true,
-    verifyCertificateAfterCreation: false,
   });
 
   await assertPathMatchesAndFileExists(
