@@ -59,9 +59,13 @@ async function handleRequest(
         docs.
       </span>
     </form>
+    <form method="POST" action="/login?sameSite=none&secure=true">
+      <button type="submit">Log in - <code>SameSite=None; Secure</code></button>
+      <span>- <code>None</code> means cookies will be sent on any requests, including cross-site.</span>
+    </form>
     <form method="POST" action="/login?sameSite=none">
       <button type="submit">Log in - <code>SameSite=None</code></button>
-      <span>- <code>None</code> means cookies will be sent on any requests, including cross-site.</span>
+      <span>- <code>None</code> cookies won't work without also including the <code>Secure</code> attribute.</span>
     </form>
     <form method="POST" action="/login?sameSite=lax">
       <button type="submit">Log in - <code>SameSite=Lax</code></button>
@@ -147,6 +151,10 @@ async function handleRequest(
     }[url.searchParams.get("sameSite") ?? ""];
     if (sameSiteVal) {
       sessionCookie += `; SameSite=${sameSiteVal}`;
+    }
+    // None cookies require the Secure attribute as well or the browser won't accept them.
+    if (url.searchParams.get("secure") === "true") {
+      sessionCookie += `; Secure`;
     }
 
     response.statusCode = 303;
