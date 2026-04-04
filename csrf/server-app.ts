@@ -34,43 +34,24 @@ async function handleRequest(
       `<html>
 <head>
   <title>App</title>
+  <style>
+    h2 {
+        margin-block-end: 4px;
+    }
+    code {
+        display: block;
+        margin-block: 4px;
+    }
+  </style>
 </head>
 <body>
   <h1>App</h1>
   <form method="POST" action="/login">
-    <button type="submit">Log in</button>
+    <button type="submit">Log in</button> - this will set a session cookie.
   </form>
-  <ul>
-    <li><a href="/transfer-demo">Transfer Demo</a></li>
-    <li><a href="/transfer-json-demo">Transfer JSON Demo</a></li>
-    <li><a href="/json">/json</a></li>
-  </ul>
-</body>
-</html>`,
-    );
-    return;
-  }
-
-  if (request.method === "POST" && url.pathname === "/login") {
-    response.statusCode = 303;
-    response.setHeader(
-      "Set-Cookie",
-      `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}; Path=/; HttpOnly; SameSite=Lax`,
-    );
-    response.setHeader("Location", "/");
-    response.end();
-    return;
-  }
-
-  if (request.method === "GET" && url.pathname === "/transfer-demo") {
-    sendHtml(
-      response,
-      `<html>
-<head>
-  <title>Transfer Demo</title>
-</head>
-<body>
-  <h1>Transfer Demo</h1>
+  
+  <h2>Authenticated endpoint</h2>
+  <code>POST, application/x-www-form-urlencoded, top-level navigation</code>
   <form method="POST" action="/transfer">
     <label>
       To
@@ -82,21 +63,10 @@ async function handleRequest(
     </label>
     <button type="submit">Send money</button>
   </form>
-</body>
-</html>`,
-    );
-    return;
-  }
-
-  if (request.method === "GET" && url.pathname === "/transfer-json-demo") {
-    sendHtml(
-      response,
-      `<html>
-<head>
-  <title>Transfer JSON Demo</title>
-</head>
-<body>
-  <h1>Transfer JSON Demo</h1>
+ 
+  
+  <h2>Authenticated endpoint</h2>
+  <code>POST, application/json, fetch</code>
   <p>This sends JSON and a custom header, so a cross-origin request requires a CORS pre-flight.</p>
   <button type="button" id="send-transfer">Send money</button>
 
@@ -121,6 +91,17 @@ async function handleRequest(
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/login") {
+    response.statusCode = 303;
+    response.setHeader(
+      "Set-Cookie",
+      `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}; Path=/; HttpOnly; SameSite=Lax`,
+    );
+    response.setHeader("Location", "/");
+    response.end();
+    return;
+  }
+
   // Authenticated with cookie, POST, application/x-www-form-urlencoded
   if (request.method === "POST" && url.pathname === "/transfer") {
     if (!hasValidSession(request.headers.cookie)) {
@@ -129,22 +110,9 @@ async function handleRequest(
       return;
     }
 
-    const body = await parseFormBody(request);
-    const to = body.to ?? "";
-    const amount = body.amount ?? "";
-
-    sendHtml(
-      response,
-      `<html>
-<head>
-  <title>Transfer Complete</title>
-</head>
-<body>
-  <h1>Transfer Complete</h1>
-  <p>Transferred ${amount} to ${to}.</p>
-</body>
-</html>`,
-    );
+    const { amount, to } = await parseFormBody(request);
+    response.statusCode = 200;
+    response.end(`Transferred ${amount} to ${to}`);
     return;
   }
 
@@ -156,17 +124,9 @@ async function handleRequest(
       return;
     }
 
-    const body = await parseJsonBody(request);
-    const to = body.to ?? "";
-    const amount = body.amount ?? "";
-
-    sendHtml(
-      response,
-      `<section>
-  <h2>Transfer JSON Complete</h2>
-  <p>Transferred ${amount} to ${to}.</p>
-</section>`,
-    );
+    const { amount, to } = await parseJsonBody(request);
+    response.statusCode = 200;
+    response.end(`Transferred ${amount} to ${to}`);
     return;
   }
 
