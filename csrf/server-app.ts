@@ -38,6 +38,9 @@ async function handleRequest(
     h2 {
         margin-block-end: 4px;
     }
+    p {
+        margin-block: 4px;
+    }
     form {
         margin: 0;
     }
@@ -49,15 +52,27 @@ async function handleRequest(
     ${hasValidSession(request) ? `<div style="color: green">Logged in</div>` : `<div style="color: red">Logged out</div>`}
     <form method="POST" action="/login?sameSite=default">
       <button type="submit">Log in - <code>SameSite</code> not supplied</button>
+      <span>
+        - cookies now generally default to <code>Lax</code>. But when you do not include <code>SameSite=Lax</code> 
+        explicitly then some browers will allow these cookies to be used cross-site for up to 2 minutes. See 
+        <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie#lax">MDN <code>Lax</code></a>
+        docs.
+      </span>
     </form>
     <form method="POST" action="/login?sameSite=none">
       <button type="submit">Log in - <code>SameSite=None</code></button>
+      <span>- <code>None</code> means cookies will be sent on any requests, including cross-site.</span>
     </form>
     <form method="POST" action="/login?sameSite=lax">
       <button type="submit">Log in - <code>SameSite=Lax</code></button>
+      <span>- 
+        <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie#lax"><code>Lax</code></a> 
+        means cookies will only be sent on cross-site requests in some situations.
+      </span>
     </form>
     <form method="POST" action="/login?sameSite=strict">
       <button type="submit">Log in - <code>SameSite=Strict</code></button>
+      <span>- <code>Strict</code> means cookies will only ever be sent on same-site requests.</span>
     </form>
     <form method="POST" action="/logout">
       <button type="submit">Log out</button>
