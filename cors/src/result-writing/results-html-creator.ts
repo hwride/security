@@ -167,7 +167,7 @@ function getServerResponseHTML(requestData: TestResultData): string {
 
     // Headers.
     const headersCapitalised: Record<string, string | number | string[]> = {};
-    Object.entries(response.res.getHeaders()).forEach(([key, value]) => {
+    Object.entries(response.res.headers).forEach(([key, value]) => {
       const capitalisedKey = key
         .split("-")
         .map((k) => k.charAt(0).toUpperCase() + k.slice(1))

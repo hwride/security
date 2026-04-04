@@ -1,12 +1,8 @@
 import { EventEmitter } from "node:events";
-import * as http from "node:http";
-
-import httpProxy from "http-proxy";
 
 import { createLogger } from "../framework/logging.ts";
-import type {
-  ProxyServer,
-} from "../types.ts";
+import type { ProxyServer } from "../types.ts";
+import { boot } from "../../../proxy/forward-proxy.ts";
 
 const logger = createLogger("servers-proxy");
 
@@ -16,16 +12,14 @@ export function setupProxyServer(proxyPort: number): ProxyServer {
 }
 
 export function shutdownProxyServer({
-  nodeHTTPProxy,
-  httpServer,
-}: Pick<ProxyServer, "nodeHTTPProxy" | "httpServer">): void {
+  forwardProxy,
+}: Pick<ProxyServer, "forwardProxy">): void {
   logger.info("Shutting down proxy server...");
-  nodeHTTPProxy.close();
-  httpServer.close();
+  forwardProxy.close();
 }
 
 function createProxy(sourcePort: number): ProxyServer {
-  const nodeHTTPProxy = httpProxy.createProxyServer({});
+  const forwardProxy = boot({ port: sourcePort });
 
   // Event listener utility functions.
   const ee = new EventEmitter({ captureRejections: true });
@@ -49,36 +43,17 @@ function createProxy(sourcePort: number): ProxyServer {
       listenObj.on("error", reject);
     });
   };
-  nodeHTTPProxy.on("proxyReq", async function (proxyReq, req) {
+  forwardProxy.on("request", async function (req) {
     const body = await captureBody(req);
-    ee.emit("request-finished", { proxyReq, req, body });
+    ee.emit("request-finished", { req, body });
   });
-  nodeHTTPProxy.on("proxyRes", async function (proxyRes, _req, res) {
-    const body = await captureBody(proxyRes);
-    ee.emit("response-finished", { proxyRes, res, body });
+  forwardProxy.on("response", async function (res) {
+    const body = await captureBody(res);
+    ee.emit("response-finished", { res, body });
   });
-
-  // Setup HTTP server to intercept requests and forward with the proxy.
-  const httpServer = http.createServer((req, res) => {
-    const protocolMatch = req.url?.match(/(\w+):/);
-    const host = req.headers.host;
-
-    if (protocolMatch == null || host == null) {
-      res.statusCode = 400;
-      res.end("Invalid proxy request URL.");
-      return;
-    }
-
-    const target = `${protocolMatch[1]}://${host}`;
-    nodeHTTPProxy.web(req, res, { target });
-  });
-
-  httpServer.listen(sourcePort);
-  logger.info(`Proxy server listening on port ${sourcePort}...`);
 
   return {
-    nodeHTTPProxy,
-    httpServer,
+    forwardProxy,
     on: ee.on.bind(ee) as ProxyServer["on"],
     off: ee.off.bind(ee) as ProxyServer["off"],
   };

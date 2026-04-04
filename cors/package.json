@@ -3,9 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Runs some CORS tests and captures script and network request details using Puppeteer and a transparent proxy.",
-  "main": "dist/test-runner/cors-tests-runner.js",
   "scripts": {
-    "build": "tsc",
+    "dev": "node src/run-cors-tests.ts",
     "test": "node src/run-cors-tests.ts",
     "start-servers": "node src/start-servers.ts",
     "types": "tsc --noEmit"
