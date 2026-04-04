@@ -124,6 +124,26 @@ Request type: top-level navigation
       <button type="submit">Send money</button>
     </form>
    </div>
+
+  <div class="example">
+    <h3>Standard HTML GET form - top-level navigation + safe HTTP method</h3>
+    <pre>
+GET /transfer-get?to=alice&amount=100
+Content-Type: none
+Request type: top-level navigation
+    </pre>
+    <form method="GET" action="/transfer-get">
+      <label>
+        To
+        <input type="text" name="to" value="alice" />
+      </label>
+      <label>
+        Amount
+        <input type="text" name="amount" value="100" />
+      </label>
+      <button type="submit">Send money</button>
+    </form>
+  </div>
   
   <div class="example">
     <h3>POST JSON fetch request - sub-resource request + unsafe HTTP method</h3>
@@ -220,6 +240,21 @@ Request type: sub-resource request
     }
 
     const { amount, to } = await parseFormBody(request);
+    response.statusCode = 200;
+    response.end(`Transferred ${amount} to ${to}`);
+    return;
+  }
+
+  // Authenticated with cookie, GET, query string, top-level navigation
+  if (request.method === "GET" && url.pathname === "/transfer-get") {
+    if (!hasValidSession(request)) {
+      response.statusCode = 401;
+      response.end("Unauthorized");
+      return;
+    }
+
+    const amount = url.searchParams.get("amount") ?? "";
+    const to = url.searchParams.get("to") ?? "";
     response.statusCode = 200;
     response.end(`Transferred ${amount} to ${to}`);
     return;
