@@ -44,9 +44,9 @@ fastify.post("/login", function (request, reply) {
   reply
     .header(
       "Set-Cookie",
-      `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}; Path=/; HttpOnly; SameSite=Lax`
+      `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}; Path=/; HttpOnly; SameSite=Lax`,
     )
-    .redirect(303, "/");
+    .redirect("/", 303);
 });
 
 fastify.get("/transfer-demo", function (request, reply) {
@@ -70,7 +70,6 @@ fastify.get("/transfer-demo", function (request, reply) {
 </body>
 </html>`);
 });
-
 
 fastify.get("/transfer-json-demo", function (request, reply) {
   reply.header("Content-Type", "text/html; charset=utf-8").send(`<html>
@@ -108,9 +107,7 @@ type TransferBody = {
 // This is a simple request for Same-Origin Policy purposes - i.e. it doesn't need a pre-flight request.
 fastify.post("/transfer", function (request, reply) {
   if (!hasValidSession(request.headers.cookie)) {
-    reply
-      .code(401)
-      .header("Content-Type", "text/html; charset=utf-8")
+    reply.code(401).header("Content-Type", "text/html; charset=utf-8")
       .send(`<html>
 <head>
   <title>Unauthorized</title>
@@ -138,8 +135,6 @@ fastify.post("/transfer", function (request, reply) {
 </html>`);
 });
 
-
-
 type TransferJsonBody = {
   to?: string;
   amount?: string;
@@ -148,9 +143,7 @@ type TransferJsonBody = {
 // This is a non-simple request for Same-Origin Policy purposes - JSON and custom headers cause a pre-flight for cross-origin requests.
 fastify.post("/transfer-json", function (request, reply) {
   if (!hasValidSession(request.headers.cookie)) {
-    reply
-      .code(401)
-      .header("Content-Type", "text/html; charset=utf-8")
+    reply.code(401).header("Content-Type", "text/html; charset=utf-8")
       .send(`<section>
   <h2>Unauthorized</h2>
   <p>Please log in first.</p>
