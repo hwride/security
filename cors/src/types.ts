@@ -1,9 +1,4 @@
-import type {
-  ClientRequest,
-  IncomingMessage,
-  Server,
-  ServerResponse,
-} from "node:http";
+import type { IncomingMessage, Server } from "node:http";
 import type { LogLevelDesc } from "loglevel";
 import type { Express } from "express";
 import type { LaunchOptions } from "puppeteer";
@@ -58,14 +53,12 @@ export type ScriptRequestResult = ScriptRequestData | ScriptErrorData;
 export type ScriptResponseResult = ScriptResponseData | ScriptErrorData | null;
 
 export interface ProxyServerRequestData {
-  proxyReq: ClientRequest;
   req: IncomingMessage;
   body: string;
 }
 
 export interface ProxyServerResponseData {
-  proxyRes: IncomingMessage;
-  res: ServerResponse<IncomingMessage>;
+  res: IncomingMessage;
   body: string;
 }
 
@@ -90,8 +83,9 @@ export type ProxyResponseFinishedListener = (
 ) => void;
 
 export interface ProxyServer {
-  nodeHTTPProxy: ReturnType<typeof import("http-proxy").createProxyServer>;
-  httpServer: Server;
+  forwardProxy: {
+    close(): void;
+  };
   on(
     eventName: "request-finished",
     listener: ProxyRequestFinishedListener,
