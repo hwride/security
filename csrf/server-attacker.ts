@@ -53,12 +53,30 @@ async function handleRequest(
         flex-direction: column;
         gap: 8px;
     }
+    table {
+        border-collapse: collapse;
+    }
+    table, th, td {
+        border: 1px solid black;
+    }
+    th, td {
+        padding: 4px 8px;
+    }
+    .yes {
+        color: green;
+    }
+    .no {
+        color: red;
+    }
+    .sometimes {
+        color: orange;
+    }
   </style>
 </head>
 <body>
   <h1>Attacker</h1>
 
-  <h2>CSRF attempts on example.com</h2>
+  <h2>CSRF attempts on example.com - SameSite testing</h2>
 
   <div class="example">
     <h3>Standard HTML POST form - top-level navigation + unsafe HTTP method</h3>
@@ -77,15 +95,39 @@ Request type: top-level navigation</pre>
       </label>
       <button type="submit">Send money</button>
     </form>
-    <ul>
-      <li>This is not vulnerable to CSRF with explicitly set <code>Lax</code> cookies.</li>
-      <li>
-        This is vulnerable to CSRF for 2 minutes after a cookie that does not explicitly set <code>Lax</code> on 
-        cookies, due to the 2 minute rule (see 
-        <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie#lax">MDN <code>Lax</code></a>
-        docs).
-      </li>
-    </ul>
+    <table>
+      <thead>
+        <tr>
+          <th>SameSite</th>
+          <th>Vulnerable to CSRF?</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Not supplied</td>
+          <td class="sometimes">Sometimes</td>
+          <td>
+            Usually treated like Lax, but some browsers allow recently set cookies on cross-site POST requests for about 2 minutes.
+          </td>
+        </tr>
+        <tr>
+          <td><code>None; Secure</code></td>
+          <td class="yes">Yes</td>
+          <td>Cookies are sent on cross-site requests, so this POST form can include the session cookie.</td>
+        </tr>
+        <tr>
+          <td><code>Lax</code></td>
+          <td class="no">No</td>
+          <td><code>Lax</code> blocks cookies on cross-site POST form submissions.</td>
+        </tr>
+        <tr>
+          <td><code>Strict</code></td>
+          <td class="no">No</td>
+          <td><code>Strict</code> only sends cookies on same-site requests.</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
   <div class="example">
@@ -105,10 +147,37 @@ Request type: top-level navigation</pre>
       </label>
       <button type="submit">Send money</button>
     </form>
-    <p class="eg-desc">
-      This is vulnerable to CSRF even with <code>SameSite=Lax</code> cookies, because it uses a top-level navigation
-      and a safe HTTP method. Attackers can also automate this form submission with JavaScript.
-    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>SameSite</th>
+          <th>Vulnerable to CSRF?</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Not supplied</td>
+          <td class="yes">Yes</td>
+          <td>Browsers generally treat this like <code>Lax</code>, and <code>Lax</code> allows cookies on cross-site top-level navigations with safe methods like <code>GET</code>.</td>
+        </tr>
+        <tr>
+          <td><code>None; Secure</code></td>
+          <td class="yes">Yes</td>
+          <td>Cookies are sent on cross-site requests, so this <code>GET</code> form can include the session cookie.</td>
+        </tr>
+        <tr>
+          <td><code>Lax</code></td>
+          <td class="yes">Yes</td>
+          <td><code>Lax</code> allows cookies on cross-site top-level navigations that use safe HTTP methods.</td>
+        </tr>
+        <tr>
+          <td><code>Strict</code></td>
+          <td class="no">No</td>
+          <td><code>Strict</code> only sends cookies on same-site requests.</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
   <div class="example">
@@ -129,11 +198,37 @@ Request type: sub-resource request</pre>
       <button type="button" id="send-transfer">Send money</button>
     </div>
     <div>Result: <span class="transfer-json-result"></span></div>
-    <p class="eg-desc">
-      This uses a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS#simple_requests">non-simple</a>
-      <code>Content-Type</code> so a cross-origin request requires a CORS pre-flight. So even if cookies would be included
-      in the request, it is blocked from being sent by the failed pre-flight <code>OPTIONS</code> request.
-    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Server CORS</th>
+          <th>SameSite</th>
+          <th>Vulnerable to CSRF?</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Does not allow cross-origin requests</td>
+          <td>Any</td>
+          <td class="no">No</td>
+          <td>
+            This cross-origin JSON fetch is blocked by the browser's Same-Origin Policy via CORS pre-flight before the 
+            actual POST is sent, so <code>SameSite</code> never gets a chance to matter here.
+          </td>
+        </tr>
+      </tbody>
+        <tr>
+          <td>Allow cross-origin requests</td>
+          <td>xxxx</td>
+          <td class="no">No</td>
+          <td>
+            This cross-origin JSON fetch is blocked by the browser's Same-Origin Policy via CORS pre-flight before the 
+            actual POST is sent, so <code>SameSite</code> never gets a chance to matter here.
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
   <script>
