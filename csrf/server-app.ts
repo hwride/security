@@ -63,9 +63,13 @@ async function handleRequest(
       <button type="submit">Log in - <code>SameSite</code> not supplied</button>
       <span>
         - cookies now generally default to <code>Lax</code>. But when you do not include <code>SameSite=Lax</code> 
-        explicitly then some browers will allow these cookies to be used cross-site for up to 2 minutes. See 
+        explicitly then some browers will allow these cookies to be used cross-site for up to 2 minutes for top-level
+        navigation requests (not sub-resource requests e.g. <code>fetch</code>). See 
         <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie#lax">MDN <code>Lax</code></a>
-        docs. These cookies will be vulnerable to CSRF during this window.
+        docs and the new 
+        <a href="https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.6.7.2">
+          draft updated Cookies spec <code>Lax-Allowing-Unsafe</code></a>. 
+        These cookies will be vulnerable to CSRF during this window.
       </span>
     </form>
     <form method="POST" action="/login?sameSite=none&secure=true">

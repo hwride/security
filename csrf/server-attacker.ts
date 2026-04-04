@@ -164,7 +164,7 @@ Request type: top-level navigation</pre>
         <tr>
           <td><code>None; Secure</code></td>
           <td class="yes">Yes</td>
-          <td>Cookies are sent on cross-site requests, so this <code>GET</code> form can include the session cookie.</td>
+          <td>Cookies are sent on all cross-site requests with <code>None; Secure</code></td>
         </tr>
         <tr>
           <td><code>Lax</code></td>
@@ -217,15 +217,33 @@ Request type: sub-resource request</pre>
             actual POST is sent, so <code>SameSite</code> never gets a chance to matter here.
           </td>
         </tr>
-      </tbody>
         <tr>
-          <td>Allow cross-origin requests</td>
-          <td>xxxx</td>
+          <td>Allows credentialed cross-origin requests</td>
+          <td>Not supplied</td>
           <td class="no">No</td>
           <td>
-            This cross-origin JSON fetch is blocked by the browser's Same-Origin Policy via CORS pre-flight before the 
-            actual POST is sent, so <code>SameSite</code> never gets a chance to matter here.
+            Even during the 2 minute <a href="https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.6.7.2">
+                <code>Lax-Allowing-Unsafe</code>
+            </a> window, cookies are only sent on top-level navigation requests, not on sub-resource requests.
           </td>
+        </tr>
+        <tr>
+          <td>Allows credentialed cross-origin requests</td>
+          <td><code>None; Secure</code></td>
+          <td class="yes">Yes</td>
+          <td>Cookies are sent on all cross-site requests with <code>None; Secure</code></td>
+        </tr>
+        <tr>
+          <td>Allows credentialed cross-origin requests</td>
+          <td><code>Lax</code></td>
+          <td class="no">No</td>
+          <td><code>Lax</code> blocks cookies on for non-safe HTTP method (<code>POST</code>), and for sub-resource requests.</td>
+        </tr>
+        <tr>
+          <td>Allows credentialed cross-origin requests</td>
+          <td><code>Strict</code></td>
+          <td class="no">No</td>
+          <td><code>Strict</code> only sends cookies on same-site requests.</td>
         </tr>
       </tbody>
     </table>
@@ -241,6 +259,9 @@ Request type: sub-resource request</pre>
       try {
         const response = await fetch("https://example.com/transfer-json", {
           method: "POST",
+          // By default credentials (here cookies) are only included with same-origin requests.
+          // You need to explicitly say to include them if doing a cross-origin request.
+          credentials: "include",
           headers: {
             "Content-Type": "application/json"
           },
