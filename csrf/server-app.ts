@@ -44,7 +44,7 @@ async function handleRequest(
     p {
         margin-block: 4px;
     }
-    form {
+    form, pre {
         margin: 0;
     }
     .example {
@@ -65,27 +65,38 @@ async function handleRequest(
         - cookies now generally default to <code>Lax</code>. But when you do not include <code>SameSite=Lax</code> 
         explicitly then some browers will allow these cookies to be used cross-site for up to 2 minutes. See 
         <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie#lax">MDN <code>Lax</code></a>
-        docs.
+        docs. These cookies will be vulnerable to CSRF during this window.
       </span>
     </form>
     <form method="POST" action="/login?sameSite=none&secure=true">
       <button type="submit">Log in - <code>SameSite=None; Secure</code></button>
-      <span>- <code>None</code> means cookies will be sent on any requests, including cross-site.</span>
+      <span>
+        - <code>None</code> means cookies will be sent on any requests, including cross-site.
+        These cookies will be vulnerable to CSRF.
+      </span>
     </form>
     <form method="POST" action="/login?sameSite=none">
       <button type="submit">Log in - <code>SameSite=None</code></button>
-      <span>- <code>None</code> cookies won't work without also including the <code>Secure</code> attribute.</span>
+      <span>
+        - Modern browsers won't event set <code>None</code> cookies without also including the <code>Secure</code> attribute.
+      </span>
     </form>
     <form method="POST" action="/login?sameSite=lax">
       <button type="submit">Log in - <code>SameSite=Lax</code></button>
-      <span>- 
+      <span>
+        - 
         <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie#lax"><code>Lax</code></a> 
-        means cookies will only be sent on cross-site requests in some situations.
+        means cookies will only be sent on cross-site requests for top-level navigations using a safe HTTP methods
+        (<code>GET</code>, <code>HEAD</code> or <code>OPTIONS</code>).
+        These cookies can be vulnerable to CSRF if you use a state changing endpoint with a safe HTTP method.
       </span>
     </form>
     <form method="POST" action="/login?sameSite=strict">
       <button type="submit">Log in - <code>SameSite=Strict</code></button>
-      <span>- <code>Strict</code> means cookies will only ever be sent on same-site requests.</span>
+      <span>
+        - <code>Strict</code> means cookies will only ever be sent on same-site requests.
+        These cookies are generally safe against CSRF.
+      </span>
     </form>
     <form method="POST" action="/logout">
       <button type="submit">Log out</button>
@@ -95,8 +106,12 @@ async function handleRequest(
   <h2>Authenticated endpoints</h2>
   
   <div class="example">
-    <h3>Standard HTML POST form</h3>
-    <code>POST, application/x-www-form-urlencoded, top-level navigation</code>
+    <h3>Standard HTML POST form - top-level navigation + unsafe HTTP method</h3>
+    <pre>
+POST /transfer
+Content-Type: application/x-www-form-urlencoded
+Request type: top-level navigation
+    </pre>
     <form method="POST" action="/transfer">
       <label>
         To
@@ -111,7 +126,12 @@ async function handleRequest(
    </div>
   
   <div class="example">
-    <h3>POST JSON fetch request</h3>
+    <h3>POST JSON fetch request - sub-resource request + unsafe HTTP method</h3>
+    <pre>
+POST /transfer-json
+Content-Type: application/json
+Request type: sub-resource request
+    </pre>
     <code>POST /transfer-json, application/json, fetch</code>
     <p class="eg-desc">
       This uses a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS#simple_requests">non-simple</a> 
@@ -136,6 +156,8 @@ async function handleRequest(
     const toInput = document.getElementById("transfer-json-to");
     const amountInput = document.getElementById("transfer-json-amount");
     button.addEventListener("click", async () => {
+      document.querySelector('.transfer-json-result').replaceChildren('Loading...')
+      
       const response = await fetch("/transfer-json", {
         method: "POST",
         headers: {
