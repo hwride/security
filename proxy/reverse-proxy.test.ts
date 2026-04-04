@@ -265,18 +265,20 @@ test("defaults to port 80 for HTTP proxies", () => {
   }
 });
 
-test("defaults to port 443 for HTTPS proxies", () => {
+test("defaults to port 443 for HTTPS proxies", async () => {
+  const { privateKeyPath, certPath } = await generateCertificates();
   const listenSpy = mockServerListen(https.Server.prototype);
 
   try {
     boot({
       proxyProtocol: "https",
       tls: {
-        key: "-----BEGIN PRIVATE KEY-----\ninvalid\n-----END PRIVATE KEY-----",
-        cert: "-----BEGIN CERTIFICATE-----\ninvalid\n-----END CERTIFICATE-----",
+        key: readFileSync(privateKeyPath),
+        cert: readFileSync(certPath),
       },
       backends: {
         "example.com": { servers: [{ url: "http://localhost:3000" }] },
+        "example.test": { servers: [{ url: "http://localhost:4000" }] },
       },
     });
 
