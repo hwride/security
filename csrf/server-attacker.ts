@@ -41,28 +41,31 @@ async function handleRequest(
     p {
         margin-block: 4px;
     }
-    form, pre {
+    form, pre, ul {
         margin: 0;
+        padding: 0;
+    }
+    ul {
+        padding-inline: 12px;
     }
     .example {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 8px;
     }
   </style>
 </head>
 <body>
   <h1>Attacker</h1>
 
-  <h2>Authenticated endpoints</h2>
+  <h2>CSRF attempts on example.com</h2>
 
   <div class="example">
     <h3>Standard HTML POST form - top-level navigation + unsafe HTTP method</h3>
     <pre>
 POST https://example.com/transfer
 Content-Type: application/x-www-form-urlencoded
-Request type: top-level navigation
-    </pre>
+Request type: top-level navigation</pre>
     <form method="POST" action="https://example.com/transfer">
       <label>
         To
@@ -74,6 +77,15 @@ Request type: top-level navigation
       </label>
       <button type="submit">Send money</button>
     </form>
+    <ul>
+      <li>This is not vulnerable to CSRF with explicitly set <code>Lax</code> cookies.</li>
+      <li>
+        This is vulnerable to CSRF for 2 minutes after a cookie that does not explicitly set <code>Lax</code> on 
+        cookies, due to the 2 minute rule (see 
+        <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie#lax">MDN <code>Lax</code></a>
+        docs).
+      </li>
+    </ul>
   </div>
 
   <div class="example">
@@ -81,8 +93,7 @@ Request type: top-level navigation
     <pre>
 GET https://example.com/transfer-get?to=mallory&amount=1000
 Content-Type: none
-Request type: top-level navigation
-    </pre>
+Request type: top-level navigation</pre>
     <form method="GET" action="https://example.com/transfer-get">
       <label>
         To
@@ -94,6 +105,10 @@ Request type: top-level navigation
       </label>
       <button type="submit">Send money</button>
     </form>
+    <p class="eg-desc">
+      This is vulnerable to CSRF even with <code>SameSite=Lax</code> cookies, because it uses a top-level navigation
+      and a safe HTTP method. Attackers can also automate this form submission with JavaScript.
+    </p>
   </div>
 
   <div class="example">
@@ -101,13 +116,7 @@ Request type: top-level navigation
     <pre>
 POST https://example.com/transfer-json
 Content-Type: application/json
-Request type: sub-resource request
-    </pre>
-    <p class="eg-desc">
-      This uses a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS#simple_requests">non-simple</a>
-      <code>Content-Type</code> so a cross-origin request requires a CORS pre-flight. So even if cookies would be included
-      in the request, it is blocked from being sent by the failed pre-flight <code>OPTIONS</code> request.
-    </p>
+Request type: sub-resource request</pre>
     <div>
       <label>
         To
@@ -120,6 +129,11 @@ Request type: sub-resource request
       <button type="button" id="send-transfer">Send money</button>
     </div>
     <div>Result: <span class="transfer-json-result"></span></div>
+    <p class="eg-desc">
+      This uses a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS#simple_requests">non-simple</a>
+      <code>Content-Type</code> so a cross-origin request requires a CORS pre-flight. So even if cookies would be included
+      in the request, it is blocked from being sent by the failed pre-flight <code>OPTIONS</code> request.
+    </p>
   </div>
 
   <script>
