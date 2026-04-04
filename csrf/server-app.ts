@@ -38,16 +38,25 @@ async function handleRequest(
     h2 {
         margin-block-end: 4px;
     }
+    h3 {
+        margin-block-end: 4px;
+    }
     p {
         margin-block: 4px;
     }
     form {
         margin: 0;
     }
+    .example {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
   </style>
 </head>
 <body>
   <h1>App</h1>
+  <h2>Login actions</h2>
   <div style="display: flex; flex-direction: column; gap: 8px">
     ${hasValidSession(request) ? `<div style="color: green">Logged in</div>` : `<div style="color: red">Logged out</div>`}
     <form method="POST" action="/login?sameSite=default">
@@ -83,39 +92,44 @@ async function handleRequest(
     </form>
   </div>
   
-  <h2>Authenticated endpoint</h2>
-  <code>POST, application/x-www-form-urlencoded, top-level navigation</code>
-  <form method="POST" action="/transfer">
-    <label>
-      To
-      <input type="text" name="to" value="alice" />
-    </label>
-    <label>
-      Amount
-      <input type="text" name="amount" value="100" />
-    </label>
-    <button type="submit">Send money</button>
-  </form>
- 
+  <h2>Authenticated endpoints</h2>
   
-  <h2>Authenticated endpoint</h2>
-  <code>POST, application/json, fetch</code>
-  <div>
-    <label>
-      To
-      <input type="text" id="transfer-json-to" value="alice" />
-    </label>
-    <label>
-      Amount
-      <input type="text" id="transfer-json-amount" value="100" />
-    </label>
-    <button type="button" id="send-transfer">Send money</button>
+  <div class="example">
+    <h3>Standard HTML POST form</h3>
+    <code>POST, application/x-www-form-urlencoded, top-level navigation</code>
+    <form method="POST" action="/transfer">
+      <label>
+        To
+        <input type="text" name="to" value="alice" />
+      </label>
+      <label>
+        Amount
+        <input type="text" name="amount" value="100" />
+      </label>
+      <button type="submit">Send money</button>
+    </form>
+   </div>
+  
+  <div class="example">
+    <h3>POST JSON fetch request</h3>
+    <code>POST /transfer-json, application/json, fetch</code>
+    <p class="eg-desc">
+      This uses a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS#simple_requests">non-simple</a> 
+      <code>Content-Type</code> so a cross-origin request requires a CORS pre-flight.
+    </p>
+    <div>
+      <label>
+        To
+        <input type="text" id="transfer-json-to" value="alice" />
+      </label>
+      <label>
+        Amount
+        <input type="text" id="transfer-json-amount" value="100" />
+      </label>
+      <button type="button" id="send-transfer">Send money</button>
+    </div>
+    <div>Result: <span class="transfer-json-result"></span></div>
   </div>
-  <p>
-    This uses a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS#simple_requests">non-simple</a> 
-    <code>Content-Type</code> so a cross-origin request requires a CORS pre-flight.
-  </p>
-  <div>Result: <span class="transfer-json-result"></span></div>
 
   <script>
     const button = document.getElementById("send-transfer");
