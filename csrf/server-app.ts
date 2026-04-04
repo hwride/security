@@ -124,19 +124,8 @@ async function handleRequest(
   // Authenticated with cookie, POST, application/x-www-form-urlencoded
   if (request.method === "POST" && url.pathname === "/transfer") {
     if (!hasValidSession(request.headers.cookie)) {
-      sendHtml(
-        response,
-        `<html>
-<head>
-  <title>Unauthorized</title>
-</head>
-<body>
-  <h1>Unauthorized</h1>
-  <p>Please log in first.</p>
-</body>
-</html>`,
-        401,
-      );
+      response.statusCode = 401;
+      response.end("Unauthorized");
       return;
     }
 
@@ -162,14 +151,8 @@ async function handleRequest(
   // Authenticated with cookie, POST, application/json
   if (request.method === "POST" && url.pathname === "/transfer-json") {
     if (!hasValidSession(request.headers.cookie)) {
-      sendHtml(
-        response,
-        `<section>
-  <h2>Unauthorized</h2>
-  <p>Please log in first.</p>
-</section>`,
-        401,
-      );
+      response.statusCode = 401;
+      response.end("Unauthorized");
       return;
     }
 
