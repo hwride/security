@@ -46,9 +46,17 @@ async function handleRequest(
 </head>
 <body>
   <h1>App</h1>
-  <form method="POST" action="/login">
-    <button type="submit">Log in</button> - this will set a session cookie.
-  </form>
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    ${
+      hasValidSession(request)
+        ? `<form method="POST" action="/logout">
+      <button type="submit">Log out</button> - this will clear the session cookie.
+    </form>`
+        : `<form method="POST" action="/login">
+      <button type="submit">Log in</button> - this will set a session cookie.
+    </form>`
+    }
+  </div>
   
   <h2>Authenticated endpoint</h2>
   <code>POST, application/x-www-form-urlencoded, top-level navigation</code>
@@ -102,9 +110,20 @@ async function handleRequest(
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/logout") {
+    response.statusCode = 303;
+    response.setHeader(
+      "Set-Cookie",
+      `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
+    );
+    response.setHeader("Location", "/");
+    response.end();
+    return;
+  }
+
   // Authenticated with cookie, POST, application/x-www-form-urlencoded
   if (request.method === "POST" && url.pathname === "/transfer") {
-    if (!hasValidSession(request.headers.cookie)) {
+    if (!hasValidSession(request)) {
       response.statusCode = 401;
       response.end("Unauthorized");
       return;
@@ -118,7 +137,7 @@ async function handleRequest(
 
   // Authenticated with cookie, POST, application/json
   if (request.method === "POST" && url.pathname === "/transfer-json") {
-    if (!hasValidSession(request.headers.cookie)) {
+    if (!hasValidSession(request)) {
       response.statusCode = 401;
       response.end("Unauthorized");
       return;
@@ -140,12 +159,14 @@ async function handleRequest(
   response.end("Not Found");
 }
 
-function hasValidSession(cookieHeader: string | undefined) {
-  if (!cookieHeader) {
+function hasValidSession(request: IncomingMessage) {
+  if (!request.headers.cookie) {
     return false;
   }
 
-  const cookies = cookieHeader.split(";").map((cookie) => cookie.trim());
+  const cookies = request.headers.cookie
+    .split(";")
+    .map((cookie) => cookie.trim());
   return cookies.includes(`${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}`);
 }
 
