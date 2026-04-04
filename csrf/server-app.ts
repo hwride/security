@@ -38,10 +38,6 @@ async function handleRequest(
     h2 {
         margin-block-end: 4px;
     }
-    code {
-        display: block;
-        margin-block: 4px;
-    }
     form {
         margin: 0;
     }
@@ -51,11 +47,20 @@ async function handleRequest(
   <h1>App</h1>
   <div style="display: flex; flex-direction: column; gap: 8px">
     ${hasValidSession(request) ? `<div style="color: green">Logged in</div>` : `<div style="color: red">Logged out</div>`}
-    <form method="POST" action="/login">
-      <button type="submit">Log in</button> - this will set a session cookie.
+    <form method="POST" action="/login?sameSite=default">
+      <button type="submit">Log in - <code>SameSite</code> not supplied</button>
+    </form>
+    <form method="POST" action="/login?sameSite=none">
+      <button type="submit">Log in - <code>SameSite=None</code></button>
+    </form>
+    <form method="POST" action="/login?sameSite=lax">
+      <button type="submit">Log in - <code>SameSite=Lax</code></button>
+    </form>
+    <form method="POST" action="/login?sameSite=strict">
+      <button type="submit">Log in - <code>SameSite=Strict</code></button>
     </form>
     <form method="POST" action="/logout">
-      <button type="submit">Log out</button> - this will clear the session cookie.
+      <button type="submit">Log out</button>
     </form>
   </div>
   
@@ -101,11 +106,20 @@ async function handleRequest(
   }
 
   if (request.method === "POST" && url.pathname === "/login") {
+    let sessionCookie = `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}; Path=/; HttpOnly`;
+
+    // Add requested SameSite value. Only for testing - of course you don't want this to be user controlled in real apps.
+    const sameSiteVal = {
+      none: "None",
+      lax: "Lax",
+      strict: "Strict",
+    }[url.searchParams.get("sameSite") ?? ""];
+    if (sameSiteVal) {
+      sessionCookie += `; SameSite=${sameSiteVal}`;
+    }
+
     response.statusCode = 303;
-    response.setHeader(
-      "Set-Cookie",
-      `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}; Path=/; HttpOnly; SameSite=Lax`,
-    );
+    response.setHeader("Set-Cookie", sessionCookie);
     response.setHeader("Location", "/");
     response.end();
     return;
