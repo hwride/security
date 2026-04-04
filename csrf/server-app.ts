@@ -2,6 +2,9 @@ import { createServer, IncomingMessage, ServerResponse } from "node:http";
 
 const SESSION_COOKIE_NAME = "session";
 const SESSION_COOKIE_VALUE = "demo-session";
+let corsSendAllowOrigin = true;
+let corsAllowOrigin: "*" | "https://attacker.com" = "*";
+let corsAllowAllCredentials = false;
 
 const server = createServer(async (request, response) => {
   try {
@@ -106,6 +109,34 @@ async function handleRequest(
       <button type="submit">Log out</button>
     </form>
   </div>
+
+  <h2>CORS options</h2>
+  <p>
+    CORS headers that will be sent for our endpoints under test:
+  </p>
+  <form method="POST" action="/update-cors-settings" style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start;">
+    <label>
+      <input
+        type="checkbox"
+        name="sendAllowOrigin"
+        ${corsSendAllowOrigin ? "checked" : ""}
+      />
+      <code>Access-Control-Allow-Origin</code>
+      <select name="allowOrigin">
+        <option value="*" ${corsAllowOrigin === "*" ? "selected" : ""}>*</option>
+        <option value="https://attacker.com" ${corsAllowOrigin === "https://attacker.com" ? "selected" : ""}>attacker.com</option>
+      </select>
+    </label>
+    <label>
+      <input
+        type="checkbox"
+        name="allowAllCredentials"
+        ${corsAllowAllCredentials ? "checked" : ""}
+      />
+      <code>Access-Control-Allow-Credentials: true</code>
+    </label>
+    <button type="submit">Update CORS settings</button>
+  </form>
   
   <h2>Authenticated endpoints</h2>
   
@@ -235,8 +266,26 @@ Request type: sub-resource request
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/update-cors-settings") {
+    const formBody = await parseFormBody(request);
+
+    corsSendAllowOrigin = formBody.sendAllowOrigin != null;
+    corsAllowOrigin =
+      formBody.allowOrigin === "https://attacker.com"
+        ? "https://attacker.com"
+        : "*";
+    corsAllowAllCredentials = formBody.allowAllCredentials != null;
+
+    response.statusCode = 303;
+    response.setHeader("Location", "/");
+    response.end();
+    return;
+  }
+
   // Authenticated with cookie, POST, application/x-www-form-urlencoded
   if (request.method === "POST" && url.pathname === "/transfer") {
+    applyCorsHeaders(response);
+
     if (!hasValidSession(request)) {
       response.statusCode = 401;
       response.end("Unauthorized");
@@ -251,6 +300,8 @@ Request type: sub-resource request
 
   // Authenticated with cookie, GET, query string, top-level navigation
   if (request.method === "GET" && url.pathname === "/transfer-get") {
+    applyCorsHeaders(response);
+
     if (!hasValidSession(request)) {
       response.statusCode = 401;
       response.end("Unauthorized");
@@ -264,8 +315,20 @@ Request type: sub-resource request
     return;
   }
 
+  // Pre-flight request
+  if (request.method === "OPTIONS" && url.pathname === "/transfer-json") {
+    applyCorsHeaders(response);
+    response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    response.statusCode = 204;
+    response.end();
+    return;
+  }
+
   // Authenticated with cookie, POST, application/json
   if (request.method === "POST" && url.pathname === "/transfer-json") {
+    applyCorsHeaders(response);
+
     if (!hasValidSession(request)) {
       response.statusCode = 401;
       response.end("Unauthorized");
@@ -306,6 +369,9 @@ async function parseFormBody(request: IncomingMessage) {
   return {
     to: parsed.get("to") ?? undefined,
     amount: parsed.get("amount") ?? undefined,
+    sendAllowOrigin: parsed.get("sendAllowOrigin") ?? undefined,
+    allowOrigin: parsed.get("allowOrigin") ?? undefined,
+    allowAllCredentials: parsed.get("allowAllCredentials") ?? undefined,
   };
 }
 
@@ -346,6 +412,16 @@ function readRequestBody(request: IncomingMessage) {
       reject(error);
     });
   });
+}
+
+function applyCorsHeaders(response: ServerResponse) {
+  if (corsSendAllowOrigin) {
+    response.setHeader("Access-Control-Allow-Origin", corsAllowOrigin);
+  }
+
+  if (corsAllowAllCredentials) {
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+  }
 }
 
 function sendHtml(response: ServerResponse, body: string, statusCode = 200) {

@@ -230,8 +230,14 @@ Request type: sub-resource request</pre>
         <tr>
           <td>Allows credentialed cross-origin requests</td>
           <td><code>None; Secure</code></td>
-          <td class="yes">Yes</td>
-          <td>Cookies are sent on all cross-site requests with <code>None; Secure</code></td>
+          <td class="sometimes">Sometimes</td>
+          <td>
+            <code>SameSite=None; Secure</code> makes the cookie eligible for cross-site requests, but this only works if
+            the browser also allows third-party cookies. Many browsers or browser settings still block them for
+            cross-site sub-resource requests (like <code>fetch</code>), even when they are still allowed on some
+            top-level navigation requests. In Chrome you can test this working by going to settings and specifically
+            adding <code>attack.com</code> to "Sites allowed to use third-party cookies".
+          </td>
         </tr>
         <tr>
           <td>Allows credentialed cross-origin requests</td>
