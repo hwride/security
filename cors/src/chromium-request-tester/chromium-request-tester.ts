@@ -1,11 +1,51 @@
-const path = require('path')
-const puppeteer = require('puppeteer')
+import * as fs from "node:fs";
+import * as path from "node:path";
 
-const { setupProxyServer, shutdownProxyServer } = require('../servers/servers-proxy')
-const { createLogger } = require('../framework/logging')
-const saveResultsAsHTML = require('../result-writing/results-html-creator')
+import puppeteer, {
+  type Browser,
+  type ConsoleMessage,
+  type LaunchOptions,
+  type Page,
+} from "puppeteer";
 
-const logger = createLogger('run-cors-tests')
+import { createLogger } from "../framework/logging.ts";
+import { createResultsHTML } from "../result-writing/results-html-creator.ts";
+import {
+  setupProxyServer,
+  shutdownProxyServer,
+} from "../servers/servers-proxy.ts";
+import type {
+  ConsoleMessageData,
+  ProxyRequestFinishedListener,
+  ProxyResponseFinishedListener,
+  ProxyServer,
+  ScriptErrorData,
+  ScriptRequestResult,
+  ScriptResponseData,
+  ScriptResponseResult,
+  TestDefinition,
+  TestResultData,
+} from "../types.ts";
+
+const logger = createLogger("run-cors-tests");
+
+interface TestRequestsConfig {
+  proxyPort: number;
+  mainPageURL: string;
+  testDefinitions: TestDefinition[];
+  resultsPath?: string;
+  puppeteerConfig?: LaunchOptions;
+}
+
+interface BrowserCaptureData {
+  request: ScriptRequestResult;
+  response: ScriptResponseResult;
+}
+
+interface PageSetup {
+  browser: Browser;
+  page: Page;
+}
 
 /**
  * Makes test requests from Chromium dev tools, captures data about the requests, and optionally writes it to HTML for display.
@@ -23,96 +63,155 @@ const logger = createLogger('run-cors-tests')
  * @param {object} config
  * @return {Promise<Array>}
  */
-module.exports = async function testRequests({
-    proxyPort,
-    mainPageURL,
-    testDefinitions,
-    resultsPath,
-    puppeteerConfig,
-}) {
-    // Setup.
-    const proxyServer = setupProxyServer(proxyPort)
-    const { browser, page } = await setupPage(puppeteerConfig, proxyPort, mainPageURL)
+export async function testRequests({
+  proxyPort,
+  mainPageURL,
+  testDefinitions,
+  resultsPath,
+  puppeteerConfig,
+}: TestRequestsConfig): Promise<TestResultData[]> {
+  // Setup.
+  const proxyServer = setupProxyServer(proxyPort);
+  let browser: Browser | undefined;
+
+  try {
+    const pageSetup = await setupPage(puppeteerConfig, proxyPort, mainPageURL);
+    browser = pageSetup.browser;
 
     // Make requests.
-    const allRequestData = await makeRequests(page, proxyServer, testDefinitions)
+    const allRequestData = await makeRequests(
+      pageSetup.page,
+      proxyServer,
+      testDefinitions,
+    );
 
     // Save results to file.
-    if(resultsPath) {
-        saveResultsToFile(resultsPath, allRequestData)
+    if (resultsPath) {
+      saveResultsToFile(resultsPath, allRequestData);
     }
 
+    return allRequestData;
+  } finally {
     // Teardown.
-    await cleanup(browser, proxyServer)
-
-    return allRequestData
+    await cleanup(browser, proxyServer);
+  }
 }
 
-async function setupPage(puppeteerConfig, proxyPort, mainPageURL) {
-    const browser = await puppeteer.launch({
-        ...puppeteerConfig,
-        args: [
-            `--proxy-server=localhost:${proxyPort}`,
-            // Need the following line to get it to work, see: https://github.com/puppeteer/puppeteer/issues/3711#issuecomment-451007780
-            '--proxy-bypass-list=<-loopback>'
-        ]
-    })
-    const page = await browser.newPage()
-    page.on('console', msg => logger.info('[Page] ' + msg.text()))
+async function setupPage(
+  puppeteerConfig: LaunchOptions | undefined,
+  proxyPort: number,
+  mainPageURL: string,
+): Promise<PageSetup> {
+  const browser = await puppeteer.launch({
+    ...puppeteerConfig,
+    args: [
+      ...(puppeteerConfig?.args ?? []),
+      `--proxy-server=localhost:${proxyPort}`,
+      // Need the following line to get it to work, see: https://github.com/puppeteer/puppeteer/issues/3711#issuecomment-451007780
+      "--proxy-bypass-list=<-loopback>",
+    ],
+  });
+  const page = await browser.newPage();
 
-    await page.goto(mainPageURL)
-    await setupBrowserRequestCapturingFunction(page)
+  page.on("console", (msg: ConsoleMessage) =>
+    logger.info(`[Page] ${msg.text()}`),
+  );
 
-    return { browser, page }
+  await page.goto(mainPageURL);
+  await setupBrowserRequestCapturingFunction(page);
+
+  return { browser, page };
 }
 
 /**
  * Sets up a global function on the page which will send a request and capture its request data.
  */
-async function setupBrowserRequestCapturingFunction(page) {
-    await page.evaluate(async () => {
-        window.sendRequestAndCaptureDataScript = async function(url, requestOptions, readBody = true) {
-            // Code below to handle errors possibly occurring in request or response.
-            let request
-            let response
-            try {
-                request = new Request(url, requestOptions)
-            } catch(e) {
-                request = e
-            }
-            try {
-                if(!(request instanceof Error)) {
-                    response = await fetch(request)
-                }
-            } catch(e) {
-                response = e
-            }
-            const getErrorObj = e => ({ error: true, msg: `${e.name}: ${e.message}` })
-            const data = {
-                request: request instanceof Error ? getErrorObj(request) : {
-                    method: request.method,
-                    url: request.url,
-                    mode: request.mode,
-                    credentials: request.credentials,
-                    headers: JSON.stringify(request.headers, null , 2)
-                }
-            }
-            if(response) {
-                data.response = {
-                    type: response.type,
-                    headers: JSON.stringify(response.headers, null , 2),
-                    status: response.status,
-                    statusText: response.statusText
-                }
-            } else if(response instanceof Error) {
-                data.response = getErrorObj(response)
-            }
-            if(readBody) {
-                data.response.body = await response.text()
-            }
-            return data
+async function setupBrowserRequestCapturingFunction(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    type CaptureFunction = (
+      url: string,
+      requestOptions?: RequestInit,
+      readBody?: boolean,
+    ) => Promise<BrowserCaptureData>;
+
+    const windowWithCapture = window as Window &
+      typeof globalThis & {
+        sendRequestAndCaptureDataScript: CaptureFunction;
+      };
+
+    windowWithCapture.sendRequestAndCaptureDataScript = async (
+      url,
+      requestOptions = {},
+      readBody = true,
+    ) => {
+      // Code below to handle errors possibly occurring in request or response.
+      let request: Request | Error;
+      let response: Response | Error | undefined;
+
+      try {
+        request = new Request(url, requestOptions);
+      } catch (error) {
+        request = error as Error;
+      }
+
+      try {
+        if (!(request instanceof Error)) {
+          response = await fetch(request);
         }
-    })
+      } catch (error) {
+        response = error as Error;
+      }
+
+      const getErrorObj = (error: Error): ScriptErrorData => ({
+        error: true,
+        msg: `${error.name}: ${error.message}`,
+      });
+
+      const data: BrowserCaptureData = {
+        request:
+          request instanceof Error
+            ? getErrorObj(request)
+            : {
+                method: request.method,
+                url: request.url,
+                mode: request.mode,
+                credentials: request.credentials,
+                headers: JSON.stringify(
+                  Object.fromEntries(request.headers.entries()),
+                  null,
+                  2,
+                ),
+              },
+        response: null,
+      };
+
+      if (response instanceof Error) {
+        data.response = getErrorObj(response);
+        return data;
+      }
+
+      if (response) {
+        const responseData: ScriptResponseData = {
+          type: response.type,
+          headers: JSON.stringify(
+            Object.fromEntries(response.headers.entries()),
+            null,
+            2,
+          ),
+          status: response.status,
+          statusText: response.statusText,
+        };
+
+        if (readBody) {
+          responseData.body = await response.text();
+        }
+
+        data.response = responseData;
+      }
+
+      return data;
+    };
+  });
 }
 
 /**
@@ -122,68 +221,136 @@ async function setupBrowserRequestCapturingFunction(page) {
  * @param requestsToMake Array of requests to make.
  * @returns {Promise<[]>}
  */
-async function makeRequests(page, proxyServer, requestsToMake) {
-    const requestData = []
+async function makeRequests(
+  page: Page,
+  proxyServer: ProxyServer,
+  requestsToMake: TestDefinition[],
+): Promise<TestResultData[]> {
+  const requestData: TestResultData[] = [];
 
-    // Ensure requests happen one at a time so all event capturing we are doing lines up correctly.
-    for(const request of requestsToMake) {
-        const requestMsg = `Processing request: ${request.name}`
-        logger.info('-'.repeat(requestMsg.length))
-        logger.info(requestMsg)
-        logger.info('-'.repeat(requestMsg.length))
+  // Ensure requests happen one at a time so all event capturing we are doing lines up correctly.
+  for (const request of requestsToMake) {
+    const requestMsg = `Processing request: ${request.name}`;
+    logger.info("-".repeat(requestMsg.length));
+    logger.info(requestMsg);
+    logger.info("-".repeat(requestMsg.length));
 
-        const thisRequestData = {
-            name: request.name,
-            notes: request.notes,
-            expectNoResponseBody: request.expectNoResponseBody,
-        }
-        requestData.push(thisRequestData)
+    const thisRequestData: TestResultData = {
+      name: request.name,
+      notes: request.notes,
+      expectNoResponseBody: request.expectNoResponseBody,
+      consoleMessages: [],
+      proxyServer: { requests: [], responses: [] },
+      requestSentByScript: { error: true, msg: "Request was not executed." },
+      responseReceivedByScript: null,
+    };
+    requestData.push(thisRequestData);
 
-        // Capture console data for this request.
-        thisRequestData.consoleMessages = []
-        const captureConsoleMessage = msg => thisRequestData.consoleMessages.push(msg)
-        page.on('console', captureConsoleMessage)
+    // Capture console data for this request.
+    const captureConsoleMessage = (msg: ConsoleMessage): void => {
+      thisRequestData.consoleMessages.push(serializeConsoleMessage(msg));
+    };
+    page.on("console", captureConsoleMessage);
 
-        // Capture server request data via the proxies for this request.
-        thisRequestData.proxyServer = { requests: [], responses: [] }
-        const captureRequestData = data => thisRequestData.proxyServer.requests.push(data)
-        proxyServer.on('request-finished', captureRequestData)
-        const captureResponseData = data => thisRequestData.proxyServer.responses.push(data)
-        proxyServer.on('response-finished', captureResponseData)
+    // Capture server request data via the proxies for this request.
+    const captureRequestData: ProxyRequestFinishedListener = (data) => {
+      thisRequestData.proxyServer.requests.push(data);
+    };
+    proxyServer.on("request-finished", captureRequestData);
 
-        Object.assign(thisRequestData, await sendRequestAndCaptureScriptData(page, request.url, request.requestOptions,
-          request.expectNoResponseBody))
+    const captureResponseData: ProxyResponseFinishedListener = (data) => {
+      thisRequestData.proxyServer.responses.push(data);
+    };
+    proxyServer.on("response-finished", captureResponseData);
 
-        // Remove per-request event listeners.
-        page.off('console', captureConsoleMessage)
-        proxyServer.off('request-finished', captureRequestData)
-        proxyServer.off('response-finished', captureResponseData)
+    const scriptData = await sendRequestAndCaptureScriptData(
+      page,
+      request.url,
+      request.requestOptions,
+      request.expectNoResponseBody === true,
+    );
+    thisRequestData.requestSentByScript = scriptData.requestSentByScript;
+    thisRequestData.responseReceivedByScript =
+      scriptData.responseReceivedByScript;
 
-        logger.info('')
+    // Remove per-request event listeners.
+    page.off("console", captureConsoleMessage);
+    proxyServer.off("request-finished", captureRequestData);
+    proxyServer.off("response-finished", captureResponseData);
+
+    logger.info("");
+  }
+
+  return requestData;
+}
+
+function serializeConsoleMessage(msg: ConsoleMessage): ConsoleMessageData {
+  return {
+    type: msg.type(),
+    text: msg.text(),
+  };
+}
+
+async function sendRequestAndCaptureScriptData(
+  page: Page,
+  url: string,
+  requestOptions: RequestInit | undefined,
+  expectNoResponseBody: boolean,
+): Promise<{
+  requestSentByScript: ScriptRequestResult;
+  responseReceivedByScript: ScriptResponseResult;
+}> {
+  const responseScript = await page.evaluate(
+    (requestURL, requestInit = {}, skipResponseBody) => {
+      type CaptureFunction = (
+        url: string,
+        requestOptions?: RequestInit,
+        readBody?: boolean,
+      ) => Promise<BrowserCaptureData>;
+
+      const windowWithCapture = window as Window &
+        typeof globalThis & {
+          sendRequestAndCaptureDataScript: CaptureFunction;
+        };
+
+      return windowWithCapture.sendRequestAndCaptureDataScript(
+        requestURL,
+        requestInit,
+        !skipResponseBody,
+      );
+    },
+    url,
+    requestOptions ?? {},
+    expectNoResponseBody,
+  );
+
+  return {
+    requestSentByScript: responseScript.request,
+    responseReceivedByScript: responseScript.response,
+  };
+}
+
+function saveResultsToFile(
+  resultsPath: string,
+  allRequestData: TestResultData[],
+): void {
+  logger.info(`Saving results to ${resultsPath}...`);
+
+  const resultsDir = path.dirname(resultsPath);
+  fs.rmSync(resultsDir, { recursive: true, force: true });
+  fs.mkdirSync(resultsDir, { recursive: true });
+  createResultsHTML(allRequestData, resultsPath);
+}
+
+async function cleanup(
+  browser: Browser | undefined,
+  proxyServer: ProxyServer,
+): Promise<void> {
+  try {
+    if (browser) {
+      await browser.close();
     }
-
-    return requestData
-}
-
-async function sendRequestAndCaptureScriptData(page, url, requestOptions, expectNoResponseBody) {
-    const responseScript = await page.evaluate((url, requestOptions = {}, expectNoResponseBody) => {
-        return sendRequestAndCaptureDataScript(url, requestOptions, !expectNoResponseBody)
-    }, url, requestOptions, expectNoResponseBody)
-    return {
-        requestSentByScript: responseScript.request,
-        responseReceivedByScript: responseScript.response
-    }
-}
-
-function saveResultsToFile(resultsPath, allRequestData) {
-    logger.info(`Savings results to ${resultsPath}...`)
-    const resultsDir = path.dirname(resultsPath)
-    if(fs.existsSync(resultsDir)) fs.rmdirSync(resultsDir, { recursive: true })
-    fs.mkdirSync(resultsDir)
-    saveResultsAsHTML(allRequestData, resultsPath)
-}
-
-async function cleanup(browser, proxyServer) {
-    await browser.close();
-    shutdownProxyServer(proxyServer)
+  } finally {
+    shutdownProxyServer(proxyServer);
+  }
 }

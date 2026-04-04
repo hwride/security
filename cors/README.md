@@ -1,15 +1,18 @@
 ![](https://github.com/hwride/security/workflows/CORS/badge.svg)
 
 # View test results
+
 See [here](https://hwride.github.io/security/cors/generated/results.html).
 
 # How to run tests
-`npm test`
 
-This will boot up some servers then make test requests using Puppeteer. Request data sent to and from the server is 
+`npm run dev`
+
+This runs the TypeScript sources directly with Node's native type stripping, boots up some servers, then makes test requests using Puppeteer. Request data sent to and from the server is
 captured using a transparent proxy. Result data is logged `generated/results.html`.
 
 # How to startup servers for manual testing
+
 This will boot up the two servers used by the tests. You can then use these for manual testing.
 
 1. `npm run start-servers`

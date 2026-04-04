@@ -1,32 +1,34 @@
-const loglevel = require('loglevel')
-const { default: chalk } = require('chalk')
-const prefix = require('loglevel-plugin-prefix')
+import chalk from "chalk";
+import loglevel, { type LogLevelDesc, type Logger } from "loglevel";
+import prefix from "loglevel-plugin-prefix";
+
+export const logColours = {
+  TRACE: chalk.magenta,
+  DEBUG: chalk.cyan,
+  INFO: chalk.blue,
+  WARN: chalk.yellow,
+  ERROR: chalk.red,
+};
 
 // Setup prefix plugin.
-prefix.reg(loglevel)
+prefix.reg(loglevel);
 // Apply prefix to root logger so all other loggers inherit.
-const logColours = exports.logColours = {
-    TRACE: chalk.magenta,
-    DEBUG: chalk.cyan,
-    INFO: chalk.blue,
-    WARN: chalk.yellow,
-    ERROR: chalk.red,
-}
 prefix.apply(loglevel, {
-    format(level, name, timestamp) {
-        return `${chalk.gray(`[${timestamp}]`)} ${logColours[level.toUpperCase()](`${level} [${name}]`)}`
-    }
-})
+  format(level, name, timestamp) {
+    return `${chalk.gray(`[${timestamp}]`)} ${logColours[level.toUpperCase() as keyof typeof logColours](`${level} [${name}]`)}`;
+  },
+});
 
 // Sets up loggers, initializing level from config if configured.
-exports.setupLogging = function(config) {
-    Object.entries(config).forEach(([loggerName, loggerLevel]) =>
-        loglevel.getLogger(loggerName).setLevel(loggerLevel))
+export function setupLogging(config: Record<string, LogLevelDesc>): void {
+  Object.entries(config).forEach(([loggerName, loggerLevel]) => {
+    loglevel.getLogger(loggerName).setLevel(loggerLevel);
+  });
 }
 
 // Create a wrapper function to change default level to INFO.
-exports.createLogger = function(name) {
-    const logger = loglevel.getLogger(name)
-    logger.setDefaultLevel('INFO')
-    return logger
+export function createLogger(name: string): Logger {
+  const logger = loglevel.getLogger(name);
+  logger.setDefaultLevel("INFO");
+  return logger;
 }

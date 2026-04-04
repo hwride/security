@@ -1,59 +1,109 @@
-const EventEmitter = require('events')
-const http = require('http')
-const httpProxy = require('http-proxy')
-const logger = require('../framework/logging').createLogger('severs-proxy')
+import { EventEmitter } from "node:events";
+import * as http from "node:http";
 
-exports.setupProxyServer = function(proxyPort) {
-	logger.info('Setting up proxy server...')
-	return createProxy(proxyPort)
+import httpProxy from "http-proxy";
+
+import { createLogger } from "../framework/logging.ts";
+import type {
+  ProxyRequestFinishedListener,
+  ProxyResponseFinishedListener,
+  ProxyServer,
+  ProxyServerRequestData,
+  ProxyServerResponseData,
+} from "../types.ts";
+
+const logger = createLogger("servers-proxy");
+
+type ProxyEventName = "request-finished" | "response-finished";
+type ProxyEventListener =
+  | ProxyRequestFinishedListener
+  | ProxyResponseFinishedListener;
+
+export function setupProxyServer(proxyPort: number): ProxyServer {
+  logger.info("Setting up proxy server...");
+  return createProxy(proxyPort);
 }
 
-exports.shutdownProxyServer = function({ nodeHTTPProxy, httpServer }) {
-	logger.info('Shutting down proxy server...')
-	nodeHTTPProxy.close()
-	httpServer.close()
+export function shutdownProxyServer({
+  nodeHTTPProxy,
+  httpServer,
+}: Pick<ProxyServer, "nodeHTTPProxy" | "httpServer">): void {
+  logger.info("Shutting down proxy server...");
+  nodeHTTPProxy.close();
+  httpServer.close();
 }
 
-function createProxy(sourcePort) {
-    const nodeHTTPProxy = httpProxy.createProxyServer({})
+function createProxy(sourcePort: number): ProxyServer {
+  const nodeHTTPProxy = httpProxy.createProxyServer({});
 
-	// Event listener utility functions.
-	const ee = new EventEmitter({ captureRejections: true })
-	// Handle uncaptured promise errors.
-	ee[Symbol.for('nodejs.rejection')] = e => logger.error(`Unhandled error occurred: ${e}`)
+  // Event listener utility functions.
+  const ee = new EventEmitter({ captureRejections: true });
+  // Handle uncaptured promise errors.
+  (ee as unknown as Record<PropertyKey, unknown>)[
+    Symbol.for("nodejs.rejection")
+  ] = (error: unknown) => {
+    logger.error(`Unhandled error occurred: ${String(error)}`);
+  };
 
-	// Listen for requests and responses.
-	const captureBody = (listenObj) => {
-		let data = [];
-		return new Promise(resolve => {
-			listenObj.on('data', chunk => data.push(chunk))
-			listenObj.on('end', () => {
-				resolve(Buffer.concat(data).toString())
-			})
-		})
-	}
-	nodeHTTPProxy.on('proxyReq', async function(proxyReq, req) {
-		const body = await captureBody(req)
-		ee.emit('request-finished', { proxyReq, req, body })
-	})
-	nodeHTTPProxy.on('proxyRes', async function(proxyRes, req, res) {
-		const body = await captureBody(proxyRes)
-		ee.emit('response-finished', { proxyRes, res, body })
-	})
+  // Listen for requests and responses.
+  nodeHTTPProxy.on("proxyReq", async (proxyReq, req) => {
+    const body = await captureBody(req);
+    ee.emit("request-finished", {
+      proxyReq,
+      req,
+      body,
+    } satisfies ProxyServerRequestData);
+  });
 
-    // Setup HTTP server to intercept requests and forward with the proxy.
-    const httpServer = http.createServer((req, res) => {
-        const protocol = req.url.match(/(\w+):/)[1]
-        const target = `${protocol}://${req.headers.host}`
-        nodeHTTPProxy.web(req, res, { target })
+  nodeHTTPProxy.on("proxyRes", async (proxyRes, _req, res) => {
+    const body = await captureBody(proxyRes);
+    ee.emit("response-finished", {
+      proxyRes,
+      res,
+      body,
+    } satisfies ProxyServerResponseData);
+  });
+
+  // Setup HTTP server to intercept requests and forward with the proxy.
+  const httpServer = http.createServer((req, res) => {
+    const protocolMatch = req.url?.match(/(\w+):/);
+    const host = req.headers.host;
+
+    if (protocolMatch == null || host == null) {
+      res.statusCode = 400;
+      res.end("Invalid proxy request URL.");
+      return;
+    }
+
+    const target = `${protocolMatch[1]}://${host}`;
+    nodeHTTPProxy.web(req, res, { target });
+  });
+
+  httpServer.listen(sourcePort);
+  logger.info(`Proxy server listening on port ${sourcePort}...`);
+
+  return {
+    nodeHTTPProxy,
+    httpServer,
+    on(eventName: ProxyEventName, listener: ProxyEventListener): void {
+      ee.on(eventName, listener);
+    },
+    off(eventName: ProxyEventName, listener: ProxyEventListener): void {
+      ee.off(eventName, listener);
+    },
+  };
+}
+
+function captureBody(listenObj: NodeJS.ReadableStream): Promise<string> {
+  const data: Buffer[] = [];
+
+  return new Promise((resolve, reject) => {
+    listenObj.on("data", (chunk: Buffer | string) => {
+      data.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
     });
-    httpServer.listen(sourcePort)
-    logger.info(`Proxy server listening on port ${sourcePort}...`)
-
-	return {
-		nodeHTTPProxy,
-        httpServer,
-		on: ee.on.bind(ee),
-		off: ee.off.bind(ee)
-	}
+    listenObj.on("end", () => {
+      resolve(Buffer.concat(data).toString());
+    });
+    listenObj.on("error", reject);
+  });
 }
