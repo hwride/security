@@ -42,20 +42,21 @@ async function handleRequest(
         display: block;
         margin-block: 4px;
     }
+    form {
+        margin: 0;
+    }
   </style>
 </head>
 <body>
   <h1>App</h1>
   <div style="display: flex; flex-direction: column; gap: 8px">
-    ${
-      hasValidSession(request)
-        ? `<form method="POST" action="/logout">
-      <button type="submit">Log out</button> - this will clear the session cookie.
-    </form>`
-        : `<form method="POST" action="/login">
+    ${hasValidSession(request) ? `<div style="color: green">Logged in</div>` : `<div style="color: red">Logged out</div>`}
+    <form method="POST" action="/login">
       <button type="submit">Log in</button> - this will set a session cookie.
-    </form>`
-    }
+    </form>
+    <form method="POST" action="/logout">
+      <button type="submit">Log out</button> - this will clear the session cookie.
+    </form>
   </div>
   
   <h2>Authenticated endpoint</h2>
