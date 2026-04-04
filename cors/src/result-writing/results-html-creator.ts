@@ -71,31 +71,36 @@ export function createResultsHTML(
         </thead>
 `;
 
-  for (const requestData of requestsData) {
+  requestsData.forEach((requestData) => {
+    const {
+      name,
+      notes,
+      requestSentByScript,
+      responseReceivedByScript,
+      consoleMessages,
+    } = requestData;
+
+    const addTD = (contents: string): void => {
+      html += `\t\t\t<td>${contents}</td>\n`;
+    };
     html += "        <tr>\n";
-    html += createTableCell(requestData.name);
-    html += createTableCell(getNotesHTML(requestData.notes));
-    html += createTableCell(
-      getScriptRequestHTML(requestData.requestSentByScript),
-    );
-    html += createTableCell(getServerRequestHTML(requestData));
-    html += createTableCell(getServerResponseHTML(requestData));
-    html += createTableCell(
-      getScriptResponseHTML(requestData.responseReceivedByScript),
-    );
-    html += createTableCell(getConsoleHTML(requestData.consoleMessages));
+
+    addTD(name);
+    addTD(getNotesHTML(notes));
+    addTD(getScriptRequestHTML(requestSentByScript));
+    addTD(getServerRequestHTML(requestData));
+    addTD(getServerResponseHTML(requestData));
+    addTD(getScriptResponseHTML(responseReceivedByScript));
+    addTD(getConsoleHTML(consoleMessages));
+
     html += "        </tr>\n";
-  }
+  });
 
   html += `    </table>
 </body>
 </html>`;
 
   fs.writeFileSync(outputPath, html);
-}
-
-function createTableCell(contents: string): string {
-  return `\t\t\t<td>${contents}</td>\n`;
 }
 
 function getNotesHTML(notes: string | undefined): string {
@@ -114,21 +119,23 @@ function getServerRequestHTML(requestData: TestResultData): string {
   const proxyRequests = requestData.proxyServer.requests;
   if (proxyRequests.length === 0) {
     return "None";
+  } else {
+    let html = "";
+    proxyRequests.forEach((proxyRequest) => {
+      html += getServerRequestHTMLSingle(proxyRequest) + "\n";
+    });
+    return html;
   }
 
-  return proxyRequests
-    .map((proxyRequest) => getServerRequestHTMLSingle(proxyRequest))
-    .join("\n");
-}
-
-function getServerRequestHTMLSingle(
-  proxyRequest: ProxyServerRequestData,
-): string {
-  let html = `<code class="pre">${proxyRequest.req.method ?? "UNKNOWN"} ${proxyRequest.req.url ?? ""}\n`;
-  html += convertRawHeadersToHTML(proxyRequest.req.rawHeaders);
-  html += proxyRequest.body;
-  html += "</code>";
-  return html;
+  function getServerRequestHTMLSingle(
+    proxyRequest: ProxyServerRequestData,
+  ): string {
+    let html = `<code class="pre">${proxyRequest.req.method ?? "UNKNOWN"} ${proxyRequest.req.url ?? ""}\n`;
+    html += convertRawHeadersToHTML(proxyRequest.req.rawHeaders);
+    html += `${proxyRequest.body}`;
+    html += `</code>`;
+    return html;
+  }
 }
 
 function getServerResponseHTML(requestData: TestResultData): string {
@@ -137,59 +144,46 @@ function getServerResponseHTML(requestData: TestResultData): string {
   const proxyResponses = requestData.proxyServer.responses;
   if (proxyResponses.length === 0) {
     return "None";
-  }
-
-  return proxyResponses
-    .map((proxyResponse) => getServerResponseHTMLSingle(proxyResponse))
-    .join("<br/>");
-}
-
-function getServerResponseHTMLSingle(
-  response: ProxyServerResponseData,
-): string {
-  let responseStr = "";
-
-  // Status.
-  const status = response.res.statusCode;
-  const isSuccess = status != null && status >= 200 && status < 400;
-  const statusClass = isSuccess ? "success" : "error";
-  const statusLine =
-    `${status ?? "Unknown"} ${response.res.statusMessage ?? ""}`.trim();
-  responseStr += `<span class="${statusClass}">${statusLine}</span>\n`;
-
-  // Headers.
-  const headersCapitalised: Record<string, string | number | string[]> = {};
-  Object.entries(response.res.getHeaders()).forEach(([key, value]) => {
-    const capitalisedKey = key
-      .split("-")
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join("-");
-    headersCapitalised[capitalisedKey] = normaliseHeaderValue(value);
-  });
-  responseStr += convertHeadersObjectToHTML(headersCapitalised);
-
-  // Body.
-  if (response.body != null) {
-    responseStr += response.body;
   } else {
-    responseStr += '<span class="error">[No body]</span>';
+    let html = "";
+    proxyResponses.forEach((proxyResponse) => {
+      html += getServerResponseHTMLSingle(proxyResponse) + "<br/>";
+    });
+    return html;
   }
 
-  return `<code class="pre">${responseStr}</code>`;
-}
+  function getServerResponseHTMLSingle(
+    response: ProxyServerResponseData,
+  ): string {
+    let responseStr = "";
 
-function normaliseHeaderValue(
-  value: number | string | string[] | undefined,
-): string | number | string[] {
-  if (value == null) {
-    return "";
+    // Status.
+    const status = response.res.statusCode;
+    let statusLine = `${status} ${response.res.statusMessage}`;
+    const statusClass =
+      status != null && status >= 200 && status < 400 ? "success" : "error";
+    statusLine = `<span class="${statusClass}">${statusLine}</span>\n`;
+    responseStr += statusLine;
+
+    // Headers.
+    const headersCapitalised: Record<string, string | number | string[]> = {};
+    Object.entries(response.res.getHeaders()).forEach(([key, value]) => {
+      const capitalisedKey = key
+        .split("-")
+        .map((k) => k.charAt(0).toUpperCase() + k.slice(1))
+        .join("-");
+      headersCapitalised[capitalisedKey] = value ?? "";
+    });
+    responseStr += convertHeadersObjectToHTML(headersCapitalised);
+
+    // Body.
+    responseStr +=
+      response.body != null
+        ? response.body
+        : `<span class="error">[No body]</span>`;
+
+    return `<code class="pre">${responseStr}</code>`;
   }
-
-  if (Array.isArray(value)) {
-    return value;
-  }
-
-  return value;
 }
 
 function getScriptResponseHTML(
@@ -197,24 +191,29 @@ function getScriptResponseHTML(
 ): string {
   if (responseReceivedByScript == null) {
     return "None";
-  }
-
-  if (isScriptError(responseReceivedByScript)) {
+  } else if (isScriptError(responseReceivedByScript)) {
     return `<code class="pre console-error">${responseReceivedByScript.msg}</code>`;
+  } else {
+    return getScriptObjectHTML(responseReceivedByScript);
   }
-
-  return getScriptObjectHTML(responseReceivedByScript);
 }
 
 function getConsoleHTML(consoleMessages: ConsoleMessageData[]): string {
-  const consoleMessagesStr = consoleMessages
-    .map((msg) => {
-      const logLevel = msg.type === "error" ? "ERROR" : "INFO";
-      const className = logLevel === "ERROR" ? ' class="console-error"' : "";
-      //
-      return `<p${className}>[${logLevel}] ${msg.text}</p>`;
-    })
-    .join("");
+  let consoleMessagesStr = "";
+  consoleMessages.forEach((msg) => {
+    let logLevel;
+    if (msg.type === "error") {
+      logLevel = "ERROR";
+    } else {
+      logLevel = "INFO";
+    }
+    //
+    consoleMessagesStr += `<p`;
+    if (logLevel === "ERROR") {
+      consoleMessagesStr += ` class="console-error"`;
+    }
+    consoleMessagesStr += `>[${logLevel}] ${msg.text}</p>`;
+  });
 
   return `<code>${consoleMessagesStr}</code>`;
 }
@@ -247,16 +246,14 @@ function isScriptError(
 function convertRawHeadersToHTML(rawHeaders: readonly string[]): string {
   // Convert raw headers to object.
   const headers: Record<string, string> = {};
-  let key: string | undefined;
-
+  let key;
   for (const rawHeader of rawHeaders) {
-    if (key == null) {
+    if (!key) {
       key = rawHeader;
-      continue;
+    } else {
+      headers[key] = rawHeader;
+      key = null;
     }
-
-    headers[key] = rawHeader;
-    key = undefined;
   }
 
   return convertHeadersObjectToHTML(headers);
@@ -267,10 +264,11 @@ function convertHeadersObjectToHTML(
 ): string {
   // Convert headers object to HTML.
   let headersStr = "";
-
-  Object.entries(headersObject).forEach(([name, value]) => {
-    headersStr += `${name}: ${value}\n`;
-  });
+  if (headersObject) {
+    Object.entries(headersObject).forEach(([name, value]) => {
+      headersStr += `${name}: ${value}\n`;
+    });
+  }
 
   return headersStr;
 }

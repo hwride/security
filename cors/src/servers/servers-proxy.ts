@@ -5,19 +5,10 @@ import httpProxy from "http-proxy";
 
 import { createLogger } from "../framework/logging.ts";
 import type {
-  ProxyRequestFinishedListener,
-  ProxyResponseFinishedListener,
   ProxyServer,
-  ProxyServerRequestData,
-  ProxyServerResponseData,
 } from "../types.ts";
 
 const logger = createLogger("servers-proxy");
-
-type ProxyEventName = "request-finished" | "response-finished";
-type ProxyEventListener =
-  | ProxyRequestFinishedListener
-  | ProxyResponseFinishedListener;
 
 export function setupProxyServer(proxyPort: number): ProxyServer {
   logger.info("Setting up proxy server...");
@@ -46,22 +37,25 @@ function createProxy(sourcePort: number): ProxyServer {
   };
 
   // Listen for requests and responses.
-  nodeHTTPProxy.on("proxyReq", async (proxyReq, req) => {
+  const captureBody = (listenObj: NodeJS.ReadableStream): Promise<string> => {
+    const data: Buffer[] = [];
+    return new Promise((resolve, reject) => {
+      listenObj.on("data", (chunk: Buffer | string) => {
+        data.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+      });
+      listenObj.on("end", () => {
+        resolve(Buffer.concat(data).toString());
+      });
+      listenObj.on("error", reject);
+    });
+  };
+  nodeHTTPProxy.on("proxyReq", async function (proxyReq, req) {
     const body = await captureBody(req);
-    ee.emit("request-finished", {
-      proxyReq,
-      req,
-      body,
-    } satisfies ProxyServerRequestData);
+    ee.emit("request-finished", { proxyReq, req, body });
   });
-
-  nodeHTTPProxy.on("proxyRes", async (proxyRes, _req, res) => {
+  nodeHTTPProxy.on("proxyRes", async function (proxyRes, _req, res) {
     const body = await captureBody(proxyRes);
-    ee.emit("response-finished", {
-      proxyRes,
-      res,
-      body,
-    } satisfies ProxyServerResponseData);
+    ee.emit("response-finished", { proxyRes, res, body });
   });
 
   // Setup HTTP server to intercept requests and forward with the proxy.
@@ -85,25 +79,7 @@ function createProxy(sourcePort: number): ProxyServer {
   return {
     nodeHTTPProxy,
     httpServer,
-    on(eventName: ProxyEventName, listener: ProxyEventListener): void {
-      ee.on(eventName, listener);
-    },
-    off(eventName: ProxyEventName, listener: ProxyEventListener): void {
-      ee.off(eventName, listener);
-    },
+    on: ee.on.bind(ee) as ProxyServer["on"],
+    off: ee.off.bind(ee) as ProxyServer["off"],
   };
-}
-
-function captureBody(listenObj: NodeJS.ReadableStream): Promise<string> {
-  const data: Buffer[] = [];
-
-  return new Promise((resolve, reject) => {
-    listenObj.on("data", (chunk: Buffer | string) => {
-      data.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
-    });
-    listenObj.on("end", () => {
-      resolve(Buffer.concat(data).toString());
-    });
-    listenObj.on("error", reject);
-  });
 }
