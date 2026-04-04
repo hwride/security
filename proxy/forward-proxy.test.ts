@@ -2,10 +2,10 @@ import * as http from "node:http";
 
 import { afterEach, expect, test } from "vitest";
 
-import { boot } from "./forward-proxy.js";
+import { boot, ForwardProxy } from "./forward-proxy.js";
 
 let backendServer: http.Server | null = null;
-let proxyServer: http.Server | null = null;
+let proxyServer: ForwardProxy | null = null;
 
 afterEach(async () => {
   if (backendServer != null) {
@@ -14,12 +14,12 @@ afterEach(async () => {
   }
 
   if (proxyServer != null) {
-    await closeServer(proxyServer);
+    await closeServer(proxyServer.server);
     proxyServer = null;
   }
 });
 
-test("forwards a basic HTTP request to its destination", async () => {
+test("forwards a basic HTTP request to its destination and emits request/response events", async () => {
   backendServer = http.createServer(async (request, response) => {
     const requestBody = await readRequestBody(request);
 
@@ -42,9 +42,18 @@ test("forwards a basic HTTP request to its destination", async () => {
   }
 
   proxyServer = boot({ port: 0 });
-  await waitForListening(proxyServer);
+  await waitForListening(proxyServer.server);
 
-  const proxyAddress = proxyServer.address();
+  const proxyRequests: http.IncomingMessage[] = [];
+  const proxyResponses: http.IncomingMessage[] = [];
+  proxyServer.on("request", (request) => {
+    proxyRequests.push(request);
+  });
+  proxyServer.on("response", (response) => {
+    proxyResponses.push(response);
+  });
+
+  const proxyAddress = proxyServer.server.address();
   if (proxyAddress == null || typeof proxyAddress === "string") {
     throw new Error("Expected proxy server to listen on a TCP port");
   }
@@ -65,6 +74,15 @@ test("forwards a basic HTTP request to its destination", async () => {
       path: "/hello?via=proxy",
     }),
   );
+  expect(proxyRequests).toHaveLength(1);
+  expect(proxyRequests[0].method).toBe("POST");
+  expect(proxyRequests[0].url).toBe(
+    `http://127.0.0.1:${backendAddress.port}/hello?via=proxy`,
+  );
+
+  expect(proxyResponses).toHaveLength(1);
+  expect(proxyResponses[0].statusCode).toBe(200);
+  expect(proxyResponses[0].headers["content-type"]).toBe("application/json");
 });
 
 function waitForListening(server: http.Server) {

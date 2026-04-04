@@ -1,4 +1,5 @@
 import * as http from "node:http";
+import { EventEmitter } from "node:events";
 
 /*
   This is a very simple test forward proxy implementation.
@@ -11,8 +12,24 @@ export type ProxyConfig = {
   port: number;
 };
 
+export type ForwardProxy = {
+  close: () => void;
+  off: (
+    eventName: "request" | "response",
+    listener: (value: http.IncomingMessage) => void,
+  ) => ForwardProxy;
+  on: (
+    eventName: "request" | "response",
+    listener: (value: http.IncomingMessage) => void,
+  ) => ForwardProxy;
+  server: http.Server;
+};
+
 export function boot({ port }: ProxyConfig) {
+  const events = new EventEmitter();
   const server = http.createServer((clientRequest, proxyResponse) => {
+    events.emit("request", clientRequest);
+
     const requestTarget = clientRequest.url;
     if (requestTarget == null) {
       proxyResponse.statusCode = 400;
@@ -49,6 +66,8 @@ export function boot({ port }: ProxyConfig) {
         path: `${targetUrl.pathname}${targetUrl.search}`,
       },
       (backendResponse) => {
+        events.emit("response", backendResponse);
+
         proxyResponse.writeHead(
           backendResponse.statusCode ?? 502,
           backendResponse.headers,
@@ -72,5 +91,20 @@ export function boot({ port }: ProxyConfig) {
     console.log(`Listening on http://localhost:${port}`);
   });
 
-  return server;
+  const forwardProxy: ForwardProxy = {
+    close: () => {
+      server.close();
+    },
+    off: (eventName, listener) => {
+      events.off(eventName, listener);
+      return forwardProxy;
+    },
+    on: (eventName, listener) => {
+      events.on(eventName, listener);
+      return forwardProxy;
+    },
+    server,
+  };
+
+  return forwardProxy;
 }
