@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "prettier:write": "prettier --write ."
+    "prettier:write": "prettier --write cors"
   },
   "devDependencies": {
     "prettier": "^3.8.1"

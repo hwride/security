@@ -1,11 +1,17 @@
 {
   "name": "security-cors",
   "version": "1.0.0",
+  "type": "module",
   "description": "Runs some CORS tests and captures script and network request details using Puppeteer and a transparent proxy.",
-  "main": "src/test-runner/cors-tests-runner.js",
+  "main": "dist/test-runner/cors-tests-runner.js",
   "scripts": {
-    "test": "node src/run-cors-tests.js",
-    "start-servers": "node src/start-servers.js"
+    "build": "tsc",
+    "test": "node src/run-cors-tests.ts",
+    "start-servers": "node src/start-servers.ts",
+    "types": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=24"
   },
   "author": "Hugo Wride",
   "dependencies": {
@@ -16,5 +22,12 @@
     "loglevel": "^1.9.2",
     "loglevel-plugin-prefix": "^0.8.4",
     "puppeteer": "^24.40.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/http-proxy": "^1.17.17",
+    "@types/node": "^25.5.0",
+    "typescript": "^5.9.3"
   }
 }
