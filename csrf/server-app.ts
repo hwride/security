@@ -111,6 +111,7 @@ async function handleRequest(
     This uses a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS#simple_requests">non-simple</a> 
     <code>Content-Type</code> so a cross-origin request requires a CORS pre-flight.
   </p>
+  <div>Result: <span class="transfer-json-result"></span></div>
 
   <script>
     const button = document.getElementById("send-transfer");
@@ -125,7 +126,8 @@ async function handleRequest(
         body: JSON.stringify({ to: toInput.value, amount: amountInput.value }),
       });
 
-      document.body.insertAdjacentHTML("beforeend", await response.text());
+      const resultText = await response.text()
+      document.querySelector('.transfer-json-result').replaceChildren('code: ' + response.status + ', text: ' + resultText)
     });
   </script>
 </body>
