@@ -248,6 +248,71 @@ test("uses 30s backend timeout by default", async () => {
     timeoutSpy.mockRestore();
   }
 });
+
+test("defaults to port 80 for HTTP proxies", () => {
+  const listenSpy = mockServerListen(http.Server.prototype);
+
+  try {
+    boot({
+      backends: {
+        "example.com": { servers: [{ url: "http://localhost:3000" }] },
+      },
+    });
+
+    expect(listenSpy).toHaveBeenCalledWith(80, expect.any(Function));
+  } finally {
+    listenSpy.mockRestore();
+  }
+});
+
+test("defaults to port 443 for HTTPS proxies", async () => {
+  const { privateKeyPath, certPath } = await generateCertificates();
+  const listenSpy = mockServerListen(https.Server.prototype);
+
+  try {
+    boot({
+      proxyProtocol: "https",
+      tls: {
+        key: readFileSync(privateKeyPath),
+        cert: readFileSync(certPath),
+      },
+      backends: {
+        "example.com": { servers: [{ url: "http://localhost:3000" }] },
+        "example.test": { servers: [{ url: "http://localhost:4000" }] },
+      },
+    });
+
+    expect(listenSpy).toHaveBeenCalledWith(443, expect.any(Function));
+  } finally {
+    listenSpy.mockRestore();
+  }
+});
+
+test("explicit port overrides PROXY_PORT and protocol defaults", () => {
+  const previousProxyPort = process.env.PROXY_PORT;
+  process.env.PROXY_PORT = "1234";
+  const listenSpy = mockServerListen(http.Server.prototype);
+
+  try {
+    boot({
+      port: 5678,
+      backends: {
+        "example.com": { servers: [{ url: "http://localhost:3000" }] },
+      },
+    });
+
+    expect(listenSpy).toHaveBeenCalledWith(5678, expect.any(Function));
+  } finally {
+    listenSpy.mockRestore();
+
+    if (previousProxyPort == null) {
+      delete process.env.PROXY_PORT;
+    } else {
+      process.env.PROXY_PORT = previousProxyPort;
+    }
+  }
+});
+
 test("returns 504 when backend response exceeds configured timeout", async () => {
   await createBackendServer({
     port: 3000,
@@ -789,6 +854,21 @@ function delay(ms: number) {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function mockServerListen(serverPrototype: {
+  listen: (...args: any[]) => unknown;
+}) {
+  return vi
+    .spyOn(serverPrototype as any, "listen")
+    .mockImplementation(function (this: unknown, ...args: unknown[]) {
+      const callback = args.at(-1);
+      if (typeof callback === "function") {
+        callback();
+      }
+
+      return this;
+    });
 }
 
 function makeRequest({

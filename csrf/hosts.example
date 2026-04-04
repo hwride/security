@@ -1,0 +1,16 @@
+# Example entries for /etc/hosts when using the CSRF demo proxy.
+#
+# The reverse proxy in csrf/proxy.ts listens on localhost:80 and routes:
+# - example.com  -> http://localhost:3000
+# - attacker.com -> http://localhost:4000
+#
+# Add these lines to /etc/hosts, then open:
+# - http://example.com
+# - http://attacker.com
+
+127.0.0.1 example.com
+127.0.0.1 attacker.com
+
+# Optional IPv6 loopback entries if you want both families covered.
+::1 example.com
+::1 attacker.com
