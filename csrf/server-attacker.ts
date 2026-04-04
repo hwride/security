@@ -1,13 +1,34 @@
-import Fastify from "fastify";
+import { createServer, IncomingMessage, ServerResponse } from "node:http";
 
-const fastify = Fastify({
-  logger: {
-    transport: { target: "pino-pretty" },
-  },
+const server = createServer(async (request, response) => {
+  try {
+    await handleRequest(request, response);
+  } catch (error) {
+    console.error(error);
+
+    if (!response.headersSent) {
+      response.statusCode = 500;
+      response.setHeader("Content-Type", "text/plain; charset=utf-8");
+    }
+
+    response.end("Internal Server Error");
+  }
 });
 
-fastify.get("/", function (request, reply) {
-  reply.header("Content-Type", "text/html; charset=utf-8").send(`<html>
+server.listen(4000, () => {
+  console.log("Server listening on http://localhost:4000");
+});
+
+async function handleRequest(
+  request: IncomingMessage,
+  response: ServerResponse,
+) {
+  const url = new URL(request.url ?? "/", "http://localhost");
+
+  if (request.method === "GET" && url.pathname === "/") {
+    sendHtml(
+      response,
+      `<html>
 <head>
   <title>App</title>
 </head>
@@ -53,12 +74,18 @@ fastify.get("/", function (request, reply) {
     });
   </script>
 </body>
-</html>`);
-});
-
-fastify.listen({ port: 4000 }, function (err, address) {
-  if (err) {
-    fastify.log.error(err);
-    process.exit(1);
+</html>`,
+    );
+    return;
   }
-});
+
+  response.statusCode = 404;
+  response.setHeader("Content-Type", "text/plain; charset=utf-8");
+  response.end("Not Found");
+}
+
+function sendHtml(response: ServerResponse, body: string, statusCode = 200) {
+  response.statusCode = statusCode;
+  response.setHeader("Content-Type", "text/html; charset=utf-8");
+  response.end(body);
+}
