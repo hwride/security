@@ -30,7 +30,7 @@ async function handleRequest(
       response,
       `<html>
 <head>
-  <title>App</title>
+  <title>Attacker</title>
 </head>
 <body>
   <h1>Free Prize</h1>
