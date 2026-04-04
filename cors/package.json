@@ -6,10 +6,12 @@
   "main": "dist/test-runner/cors-tests-runner.js",
   "scripts": {
     "build": "tsc",
-    "dev": "node src/run-cors-tests.ts",
-    "test": "npm run build && node dist/run-cors-tests.js",
-    "start-servers": "npm run build && node dist/start-servers.js",
+    "test": "node src/run-cors-tests.ts",
+    "start-servers": "node src/start-servers.ts",
     "types": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=24"
   },
   "author": "Hugo Wride",
   "dependencies": {
