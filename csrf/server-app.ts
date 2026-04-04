@@ -81,19 +81,33 @@ async function handleRequest(
   
   <h2>Authenticated endpoint</h2>
   <code>POST, application/json, fetch</code>
-  <p>This sends JSON and a custom header, so a cross-origin request requires a CORS pre-flight.</p>
-  <button type="button" id="send-transfer">Send money</button>
+  <div>
+    <label>
+      To
+      <input type="text" id="transfer-json-to" value="alice" />
+    </label>
+    <label>
+      Amount
+      <input type="text" id="transfer-json-amount" value="100" />
+    </label>
+    <button type="button" id="send-transfer">Send money</button>
+  </div>
+  <p>
+    This uses a <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS#simple_requests">non-simple</a> 
+    <code>Content-Type</code> so a cross-origin request requires a CORS pre-flight.
+  </p>
 
   <script>
     const button = document.getElementById("send-transfer");
+    const toInput = document.getElementById("transfer-json-to");
+    const amountInput = document.getElementById("transfer-json-amount");
     button.addEventListener("click", async () => {
       const response = await fetch("/transfer-json", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "X-Transfer-Intent": "manual",
+          "Content-Type": "application/json"
         },
-        body: JSON.stringify({ to: "alice", amount: "100" }),
+        body: JSON.stringify({ to: toInput.value, amount: amountInput.value }),
       });
 
       document.body.insertAdjacentHTML("beforeend", await response.text());
