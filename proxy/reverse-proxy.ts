@@ -52,11 +52,16 @@ export type ServerConfig = {
 };
 
 const DEFAULT_BACKEND_REQUEST_TIMEOUT_MS = 30_000;
+const DEFAULT_HTTP_PROXY_PORT = 80;
+const DEFAULT_HTTPS_PROXY_PORT = 443;
 
 export function boot(opts: ProxyConfig) {
-  const port = opts.port ?? process.env.PROXY_PORT ?? 8080;
   const { backends } = opts;
   const proxyProtocol = opts.proxyProtocol ?? "http";
+  const port =
+    opts.port ??
+    process.env.PROXY_PORT ??
+    getDefaultPortForProxyProtocol(proxyProtocol);
   const tlsOptions = opts.tls;
   const backendRequestTimeoutMs =
     opts.backendRequestTimeoutMs ?? DEFAULT_BACKEND_REQUEST_TIMEOUT_MS;
@@ -256,6 +261,12 @@ export function boot(opts: ProxyConfig) {
   });
 
   return server;
+}
+
+function getDefaultPortForProxyProtocol(proxyProtocol: "http" | "https") {
+  return proxyProtocol === "https"
+    ? DEFAULT_HTTPS_PROXY_PORT
+    : DEFAULT_HTTP_PROXY_PORT;
 }
 
 function getHostnameFromHostHeader(hostHeader: string) {
