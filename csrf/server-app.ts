@@ -1,28 +1,37 @@
-import formbody from "@fastify/formbody";
-import Fastify from "fastify";
-
-const fastify = Fastify({
-  logger: {
-    transport: { target: "pino-pretty" },
-  },
-});
-
-await fastify.register(formbody);
+import { createServer, IncomingMessage, ServerResponse } from "node:http";
 
 const SESSION_COOKIE_NAME = "session";
 const SESSION_COOKIE_VALUE = "demo-session";
 
-function hasValidSession(cookieHeader: string | undefined) {
-  if (!cookieHeader) {
-    return false;
+const server = createServer(async (request, response) => {
+  try {
+    await handleRequest(request, response);
+  } catch (error) {
+    console.error(error);
+
+    if (!response.headersSent) {
+      response.statusCode = 500;
+      response.setHeader("Content-Type", "text/plain; charset=utf-8");
+    }
+
+    response.end("Internal Server Error");
   }
+});
 
-  const cookies = cookieHeader.split(";").map((cookie) => cookie.trim());
-  return cookies.includes(`${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}`);
-}
+server.listen(3000, () => {
+  console.log("Server listening on http://localhost:3000");
+});
 
-fastify.get("/", function (request, reply) {
-  reply.header("Content-Type", "text/html; charset=utf-8").send(`<html>
+async function handleRequest(
+  request: IncomingMessage,
+  response: ServerResponse,
+) {
+  const url = new URL(request.url ?? "/", "http://localhost");
+
+  if (request.method === "GET" && url.pathname === "/") {
+    sendHtml(
+      response,
+      `<html>
 <head>
   <title>App</title>
 </head>
@@ -37,20 +46,26 @@ fastify.get("/", function (request, reply) {
     <li><a href="/json">/json</a></li>
   </ul>
 </body>
-</html>`);
-});
+</html>`,
+    );
+    return;
+  }
 
-fastify.post("/login", function (request, reply) {
-  reply
-    .header(
+  if (request.method === "POST" && url.pathname === "/login") {
+    response.statusCode = 303;
+    response.setHeader(
       "Set-Cookie",
       `${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}; Path=/; HttpOnly; SameSite=Lax`,
-    )
-    .redirect("/", 303);
-});
+    );
+    response.setHeader("Location", "/");
+    response.end();
+    return;
+  }
 
-fastify.get("/transfer-demo", function (request, reply) {
-  reply.header("Content-Type", "text/html; charset=utf-8").send(`<html>
+  if (request.method === "GET" && url.pathname === "/transfer-demo") {
+    sendHtml(
+      response,
+      `<html>
 <head>
   <title>Transfer Demo</title>
 </head>
@@ -68,11 +83,15 @@ fastify.get("/transfer-demo", function (request, reply) {
     <button type="submit">Send money</button>
   </form>
 </body>
-</html>`);
-});
+</html>`,
+    );
+    return;
+  }
 
-fastify.get("/transfer-json-demo", function (request, reply) {
-  reply.header("Content-Type", "text/html; charset=utf-8").send(`<html>
+  if (request.method === "GET" && url.pathname === "/transfer-json-demo") {
+    sendHtml(
+      response,
+      `<html>
 <head>
   <title>Transfer JSON Demo</title>
 </head>
@@ -97,18 +116,17 @@ fastify.get("/transfer-json-demo", function (request, reply) {
     });
   </script>
 </body>
-</html>`);
-});
+</html>`,
+    );
+    return;
+  }
 
-type TransferBody = {
-  to?: string;
-  amount?: string;
-};
-// This is a simple request for Same-Origin Policy purposes - i.e. it doesn't need a pre-flight request.
-fastify.post("/transfer", function (request, reply) {
-  if (!hasValidSession(request.headers.cookie)) {
-    reply.code(401).header("Content-Type", "text/html; charset=utf-8")
-      .send(`<html>
+  // Authenticated with cookie, POST, application/x-www-form-urlencoded
+  if (request.method === "POST" && url.pathname === "/transfer") {
+    if (!hasValidSession(request.headers.cookie)) {
+      sendHtml(
+        response,
+        `<html>
 <head>
   <title>Unauthorized</title>
 </head>
@@ -116,15 +134,19 @@ fastify.post("/transfer", function (request, reply) {
   <h1>Unauthorized</h1>
   <p>Please log in first.</p>
 </body>
-</html>`);
-    return;
-  }
+</html>`,
+        401,
+      );
+      return;
+    }
 
-  const body = request.body as TransferBody;
-  const to = body.to ?? "";
-  const amount = body.amount ?? "";
+    const body = await parseFormBody(request);
+    const to = body.to ?? "";
+    const amount = body.amount ?? "";
 
-  reply.header("Content-Type", "text/html; charset=utf-8").send(`<html>
+    sendHtml(
+      response,
+      `<html>
 <head>
   <title>Transfer Complete</title>
 </head>
@@ -132,42 +154,119 @@ fastify.post("/transfer", function (request, reply) {
   <h1>Transfer Complete</h1>
   <p>Transferred ${amount} to ${to}.</p>
 </body>
-</html>`);
-});
-
-type TransferJsonBody = {
-  to?: string;
-  amount?: string;
-};
-
-// This is a non-simple request for Same-Origin Policy purposes - JSON and custom headers cause a pre-flight for cross-origin requests.
-fastify.post("/transfer-json", function (request, reply) {
-  if (!hasValidSession(request.headers.cookie)) {
-    reply.code(401).header("Content-Type", "text/html; charset=utf-8")
-      .send(`<section>
-  <h2>Unauthorized</h2>
-  <p>Please log in first.</p>
-</section>`);
+</html>`,
+    );
     return;
   }
 
-  const body = request.body as TransferJsonBody;
-  const to = body.to ?? "";
-  const amount = body.amount ?? "";
+  // Authenticated with cookie, POST, application/json
+  if (request.method === "POST" && url.pathname === "/transfer-json") {
+    if (!hasValidSession(request.headers.cookie)) {
+      sendHtml(
+        response,
+        `<section>
+  <h2>Unauthorized</h2>
+  <p>Please log in first.</p>
+</section>`,
+        401,
+      );
+      return;
+    }
 
-  reply.header("Content-Type", "text/html; charset=utf-8").send(`<section>
+    const body = await parseJsonBody(request);
+    const to = body.to ?? "";
+    const amount = body.amount ?? "";
+
+    sendHtml(
+      response,
+      `<section>
   <h2>Transfer JSON Complete</h2>
   <p>Transferred ${amount} to ${to}.</p>
-</section>`);
-});
-
-fastify.get("/json", function (request, reply) {
-  reply.send({ json: "value" });
-});
-
-fastify.listen({ port: 3000 }, function (err, address) {
-  if (err) {
-    fastify.log.error(err);
-    process.exit(1);
+</section>`,
+    );
+    return;
   }
-});
+
+  if (request.method === "GET" && url.pathname === "/json") {
+    sendJson(response, { json: "value" });
+    return;
+  }
+
+  response.statusCode = 404;
+  response.setHeader("Content-Type", "text/plain; charset=utf-8");
+  response.end("Not Found");
+}
+
+function hasValidSession(cookieHeader: string | undefined) {
+  if (!cookieHeader) {
+    return false;
+  }
+
+  const cookies = cookieHeader.split(";").map((cookie) => cookie.trim());
+  return cookies.includes(`${SESSION_COOKIE_NAME}=${SESSION_COOKIE_VALUE}`);
+}
+
+async function parseFormBody(request: IncomingMessage) {
+  const rawBody = await readRequestBody(request);
+  const parsed = new URLSearchParams(rawBody);
+
+  return {
+    to: parsed.get("to") ?? undefined,
+    amount: parsed.get("amount") ?? undefined,
+  };
+}
+
+async function parseJsonBody(request: IncomingMessage) {
+  const rawBody = await readRequestBody(request);
+
+  if (rawBody === "") {
+    return {};
+  }
+
+  const parsed = JSON.parse(rawBody);
+  if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return {};
+  }
+
+  return {
+    to: getOptionalString(parsed.to),
+    amount: getOptionalString(parsed.amount),
+  };
+}
+
+function getOptionalString(value: unknown) {
+  return typeof value === "string" ? value : undefined;
+}
+
+function readRequestBody(request: IncomingMessage) {
+  return new Promise<string>((resolve, reject) => {
+    let body = "";
+
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => {
+      body += chunk;
+    });
+    request.on("end", () => {
+      resolve(body);
+    });
+    request.on("error", (error) => {
+      reject(error);
+    });
+  });
+}
+
+function sendHtml(response: ServerResponse, body: string, statusCode = 200) {
+  response.statusCode = statusCode;
+  response.setHeader("Content-Type", "text/html; charset=utf-8");
+  response.end(body);
+}
+
+function sendJson(
+  response: ServerResponse,
+  body: Record<string, string>,
+  statusCode = 200,
+) {
+  response.statusCode = statusCode;
+  response.setHeader("Content-Type", "application/json; charset=utf-8");
+  response.end(JSON.stringify(body));
+}
