@@ -160,7 +160,15 @@ test("jose encrypts and decrypts RSA-OAEP-256 JWT (asymmetric) using a JWKS", as
     .encrypt(publicKey);
 
   const jwks = createLocalJWKSet({
-    keys: [{ ...privateJwk, kid, alg: "RSA-OAEP-256", use: "enc" }],
+    keys: [
+      {
+        ...privateJwk,
+        kid,
+        alg: "RSA-OAEP-256",
+        use: "enc",
+        key_ops: ["decrypt"],
+      },
+    ],
   });
 
   // @ts-expect-error jose types for jwtDecrypt/getKey are narrower than runtime usage here
