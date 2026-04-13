@@ -147,7 +147,9 @@ test("jose encrypts and decrypts A256GCM JWT (symmetric)", async () => {
 
 
 test("jose encrypts and decrypts RSA-OAEP-256 JWT (asymmetric) using a JWKS", async () => {
-  const { publicKey, privateKey } = await generateKeyPair("RSA-OAEP-256");
+  const { publicKey, privateKey } = await generateKeyPair("RSA-OAEP-256", {
+    extractable: true,
+  });
   const privateJwk = await exportJWK(privateKey);
   const kid = await calculateJwkThumbprint(privateJwk);
 
