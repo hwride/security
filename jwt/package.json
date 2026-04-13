@@ -1,0 +1,17 @@
+{
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --test jwt.test.ts",
+    "types": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "jose": "^6.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^5.9.3"
+  }
+}
