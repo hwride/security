@@ -62,3 +62,24 @@ jobs:
         working-directory: ./https/node
       - run: npm test
         working-directory: ./https/node
+
+
+  jwt:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [24.x]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm install
+        working-directory: ./jwt
+      - run: npm run types
+        working-directory: ./jwt
+      - run: npm test
+        working-directory: ./jwt
