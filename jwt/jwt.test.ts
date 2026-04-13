@@ -128,7 +128,7 @@ test("jose verifies tokens from two JWKS keys and rejects unknown kid", async ()
 });
 
 
-test("jose encrypts and decrypts a JWT payload (JWE)", async () => {
+test("jose encrypts and decrypts A256GCM JWT (symmetric)", async () => {
   const encryptionSecret = textEncoder.encode("0123456789abcdef0123456789abcdef");
 
   const encryptedJwt = await new EncryptJWT(payload)
