@@ -145,6 +145,30 @@ test("jose encrypts and decrypts a JWT payload (JWE)", async () => {
   assert.equal(typeof decrypted.exp, "number");
 });
 
+
+test("jose encrypts and decrypts RSA-OAEP-256 JWT (asymmetric) using a JWKS", async () => {
+  const { publicKey, privateKey } = await generateKeyPair("RSA-OAEP-256");
+  const privateJwk = await exportJWK(privateKey);
+  const kid = await calculateJwkThumbprint(privateJwk);
+
+  const encryptedJwt = await new EncryptJWT(payload)
+    .setProtectedHeader({ alg: "RSA-OAEP-256", enc: "A256GCM", kid })
+    .setIssuedAt()
+    .setExpirationTime("1h")
+    .encrypt(publicKey);
+
+  const jwks = createLocalJWKSet({
+    keys: [{ ...privateJwk, kid, alg: "RSA-OAEP-256", use: "enc" }],
+  });
+
+  const { payload: decrypted } = await jwtDecrypt(encryptedJwt, jwks);
+
+  assert.equal(decrypted.sub, payload.sub);
+  assert.equal(decrypted.role, payload.role);
+  assert.equal(typeof decrypted.iat, "number");
+  assert.equal(typeof decrypted.exp, "number");
+});
+
 test("jose rejects JWT with invalid symmetric key", async () => {
   const token = await new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
