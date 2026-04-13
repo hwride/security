@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  EncryptJWT,
   SignJWT,
   calculateJwkThumbprint,
   createLocalJWKSet,
   exportJWK,
   generateKeyPair,
+  jwtDecrypt,
   jwtVerify,
 } from "jose";
 
@@ -123,6 +125,24 @@ test("jose verifies tokens from two JWKS keys and rejects unknown kid", async ()
     () => jwtVerify(tokenOutsideSet, jwks, { algorithms: ["RS256"] }),
     /no applicable key found/i,
   );
+});
+
+
+test("jose encrypts and decrypts a JWT payload (JWE)", async () => {
+  const encryptionSecret = textEncoder.encode("0123456789abcdef0123456789abcdef");
+
+  const encryptedJwt = await new EncryptJWT(payload)
+    .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
+    .setIssuedAt()
+    .setExpirationTime("1h")
+    .encrypt(encryptionSecret);
+
+  const { payload: decrypted } = await jwtDecrypt(encryptedJwt, encryptionSecret);
+
+  assert.equal(decrypted.sub, payload.sub);
+  assert.equal(decrypted.role, payload.role);
+  assert.equal(typeof decrypted.iat, "number");
+  assert.equal(typeof decrypted.exp, "number");
 });
 
 test("jose rejects JWT with invalid symmetric key", async () => {
