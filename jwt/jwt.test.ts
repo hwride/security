@@ -8,6 +8,7 @@ import {
   createLocalJWKSet,
   exportJWK,
   generateKeyPair,
+  importJWK,
   jwtDecrypt,
   jwtVerify,
 } from "jose";
@@ -159,20 +160,15 @@ test("jose encrypts and decrypts RSA-OAEP-256 JWT (asymmetric) using a JWKS", as
     .setExpirationTime("1h")
     .encrypt(publicKey);
 
-  const jwks = createLocalJWKSet({
-    keys: [
-      {
-        ...privateJwk,
-        kid,
-        alg: "RSA-OAEP-256",
-        use: "enc",
-        key_ops: ["decrypt"],
-      },
-    ],
-  });
+  const jwks = {
+    keys: [{ ...privateJwk, kid, alg: "RSA-OAEP-256", use: "enc" }],
+  };
 
-  // @ts-expect-error jose types for jwtDecrypt/getKey are narrower than runtime usage here
-  const { payload: decrypted } = await jwtDecrypt(encryptedJwt, jwks);
+  const { payload: decrypted } = await jwtDecrypt(encryptedJwt, async (protectedHeader) => {
+    const key = jwks.keys.find((jwk) => jwk.kid === protectedHeader.kid);
+    assert.ok(key, "expected matching JWK for decryption");
+    return importJWK(key, "RSA-OAEP-256");
+  });
 
   assert.equal(decrypted.sub, payload.sub);
   assert.equal(decrypted.role, payload.role);
