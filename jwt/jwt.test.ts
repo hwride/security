@@ -132,7 +132,8 @@ test("jose rejects JWT with invalid symmetric key", async () => {
     .setExpirationTime("1h")
     .sign(symmetricSecret);
 
-  await assert.rejects(() =>
-    jwtVerify(token, textEncoder.encode("wrong-secret-signing-key")),
+  await assert.rejects(
+    () => jwtVerify(token, textEncoder.encode("wrong-secret-signing-key")),
+    /signature verification failed/i,
   );
 });
