@@ -161,6 +161,7 @@ test("jose encrypts and decrypts RSA-OAEP-256 JWT (asymmetric) using a JWKS", as
     keys: [{ ...privateJwk, kid, alg: "RSA-OAEP-256", use: "enc" }],
   });
 
+  // @ts-expect-error jose types for jwtDecrypt/getKey are narrower than runtime usage here
   const { payload: decrypted } = await jwtDecrypt(encryptedJwt, jwks);
 
   assert.equal(decrypted.sub, payload.sub);
