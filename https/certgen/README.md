@@ -4,7 +4,7 @@ or testing - not for production.
 
 ## Quick start
 1. Run `npm run generate-ca` to generate a certificate authority certificate. 
-1. Run `npm run install-ca` to install the CA certificate into the system trust store.
+1. Run `npm run install-ca` to install the CA certificate into your user trust store.
 1. Run `npm run issue-cert` to issue new certificates. You can run this each time you want a new signed certificate.
 
 ## Generate Certificate Authority (CA)
@@ -21,12 +21,12 @@ Output directory `build-ca` containing:
 ## Install Certificate Authority certificate
 `npm run install-ca`
 
-This script will install the generated CA certificate into the system trust store. Currently MacOS only.
+This script installs the generated CA certificate into the macOS login keychain or the Windows current-user Trusted Root Certification Authorities store. On Windows it uses `certutil.exe` with `-user`, so it does not request machine-wide installation. Windows may ask you to confirm trusting the CA.
 
 ## Uninstall Certificate Authority certificate
 `npm run uninstall-ca`
 
-This script will remove the generated CA certificate from the system trust store. Currently MacOS only.
+This script removes the generated CA certificate from the same user trust store. Keep `build-ca/ca-root.crt` so the script can identify the exact certificate to remove.
 
 ## Issue TLS Certificate
 `npm run issue-cert`
